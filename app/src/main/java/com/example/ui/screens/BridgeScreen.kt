@@ -61,12 +61,12 @@ import com.example.model.GlassOpticsConfig
 import com.example.ui.StudioUiState
 import com.example.ui.components.LiquidGlassPanel
 import com.example.ui.components.StatusPillBadge
-import com.example.ui.theme.GlassTextMuted
-import com.example.ui.theme.GlassTextPrimary
-import com.example.ui.theme.GlassTextSecondary
-import com.example.ui.theme.IceCyanPrimary
-import com.example.ui.theme.LiquidAmber
-import com.example.ui.theme.LiquidEmerald
+import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.FrostPrimary
+import com.example.ui.theme.AccentAmber
+import com.example.ui.theme.AccentSage
 
 @Composable
 fun BridgeScreen(
@@ -104,12 +104,12 @@ fun BridgeScreen(
                     Text(
                         text = stringResource(R.string.bridge_title),
                         style = MaterialTheme.typography.headlineMedium,
-                        color = GlassTextPrimary
+                        color = TextPrimary
                     )
                     Text(
                         text = stringResource(R.string.bridge_subtitle),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = GlassTextSecondary
+                        color = TextSecondary
                     )
                 }
             }
@@ -118,9 +118,9 @@ fun BridgeScreen(
             item {
                 LiquidGlassPanel(
                     accentGlow = if (uiState.isNotificationAccessGranted && uiState.isOverlayPermissionGranted) {
-                        LiquidEmerald
+                        AccentSage
                     } else {
-                        LiquidAmber
+                        AccentAmber
                     }
                 ) {
                     PermissionRow(
@@ -168,12 +168,12 @@ fun BridgeScreen(
                             Text(
                                 text = "System Popup Overlay",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = GlassTextPrimary
+                                color = TextPrimary
                             )
                             Text(
                                 text = "Pop Liquid Glass water drop below selfie camera on any screen",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = GlassTextMuted
+                                color = TextMuted
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
@@ -184,7 +184,7 @@ fun BridgeScreen(
                             },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color(0xFF041928),
-                                checkedTrackColor = IceCyanPrimary
+                                checkedTrackColor = FrostPrimary
                             ),
                             modifier = Modifier.testTag("switch_enable_overlay")
                         )
@@ -201,12 +201,12 @@ fun BridgeScreen(
                             Text(
                                 text = "Ignore Silent Ongoing",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = GlassTextPrimary
+                                color = TextPrimary
                             )
                             Text(
                                 text = "Skip background tasks (keeps calls, media & live deliveries active)",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = GlassTextMuted
+                                color = TextMuted
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
@@ -217,7 +217,7 @@ fun BridgeScreen(
                             },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color(0xFF041928),
-                                checkedTrackColor = IceCyanPrimary
+                                checkedTrackColor = FrostPrimary
                             ),
                             modifier = Modifier.testTag("switch_suppress_ongoing")
                         )
@@ -227,7 +227,7 @@ fun BridgeScreen(
 
             // OPPO CPH2773 / ColorOS Native Guide + Quick System Settings Shortcuts
             item {
-                LiquidGlassPanel(accentGlow = IceCyanPrimary) {
+                LiquidGlassPanel(accentGlow = FrostPrimary) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -235,32 +235,32 @@ fun BridgeScreen(
                         Icon(
                             imageVector = Icons.Rounded.PhoneAndroid,
                             contentDescription = null,
-                            tint = IceCyanPrimary,
+                            tint = FrostPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
                             text = stringResource(R.string.coloros_guide_title),
                             style = MaterialTheme.typography.titleMedium,
-                            color = GlassTextPrimary
+                            color = TextPrimary
                         )
                     }
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = stringResource(R.string.coloros_guide_step1),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = GlassTextSecondary
+                        color = TextSecondary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = stringResource(R.string.coloros_guide_step2),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = GlassTextSecondary
+                        color = TextSecondary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = stringResource(R.string.coloros_guide_step3),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = GlassTextSecondary
+                        color = TextSecondary
                     )
                     Spacer(modifier = Modifier.height(14.dp))
                     Row(
@@ -278,14 +278,14 @@ fun BridgeScreen(
                             Icon(
                                 imageVector = Icons.Rounded.BatterySaver,
                                 contentDescription = null,
-                                tint = IceCyanPrimary,
+                                tint = FrostPrimary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Battery",
                                 style = MaterialTheme.typography.labelLarge,
-                                color = GlassTextPrimary
+                                color = TextPrimary
                             )
                         }
                         OutlinedButton(
@@ -299,14 +299,14 @@ fun BridgeScreen(
                             Icon(
                                 imageVector = Icons.Rounded.Settings,
                                 contentDescription = null,
-                                tint = IceCyanPrimary,
+                                tint = FrostPrimary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Channels",
                                 style = MaterialTheme.typography.labelLarge,
-                                color = GlassTextPrimary
+                                color = TextPrimary
                             )
                         }
                     }
@@ -318,7 +318,7 @@ fun BridgeScreen(
                 Text(
                     text = "Captured System Alerts",
                     style = MaterialTheme.typography.titleMedium,
-                    color = GlassTextPrimary
+                    color = TextPrimary
                 )
             }
 
@@ -328,13 +328,13 @@ fun BridgeScreen(
                         Text(
                             text = "No live system notifications intercepted yet.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = GlassTextSecondary
+                            color = TextSecondary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Once Notification Access is granted, incoming messages, deliveries, media, and OTPs appear here for instant replay or per-app filtering.",
                             style = MaterialTheme.typography.labelSmall,
-                            color = GlassTextMuted
+                            color = TextMuted
                         )
                     }
                 }
@@ -369,12 +369,12 @@ private fun PermissionRow(
             .background(Color.White.copy(alpha = 0.05f))
             .border(
                 width = 1.dp,
-                color = if (granted) LiquidEmerald.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.10f),
+                color = if (granted) AccentSage.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.10f),
                 shape = RoundedCornerShape(18.dp)
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = IceCyanPrimary),
+                indication = ripple(color = FrostPrimary),
                 onClick = onClick
             )
             .padding(14.dp)
@@ -385,13 +385,13 @@ private fun PermissionRow(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background((if (granted) LiquidEmerald else IceCyanPrimary).copy(alpha = 0.16f)),
+                .background((if (granted) AccentSage else FrostPrimary).copy(alpha = 0.16f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = title,
-                tint = if (granted) LiquidEmerald else IceCyanPrimary,
+                tint = if (granted) AccentSage else FrostPrimary,
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -400,12 +400,12 @@ private fun PermissionRow(
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = GlassTextPrimary
+                color = TextPrimary
             )
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = GlassTextMuted,
+                color = TextMuted,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
@@ -414,14 +414,14 @@ private fun PermissionRow(
         StatusPillBadge(
             text = if (granted) stringResource(R.string.status_active) else stringResource(R.string.status_required),
             isActive = granted,
-            activeColor = LiquidEmerald
+            activeColor = AccentSage
         )
         if (!granted) {
             Spacer(modifier = Modifier.width(4.dp))
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                 contentDescription = null,
-                tint = GlassTextSecondary,
+                tint = TextSecondary,
                 modifier = Modifier.size(16.dp)
             )
         }
@@ -477,14 +477,14 @@ private fun CapturedNotificationRow(
             Text(
                 text = "${drop.appName} · ${drop.title}",
                 style = MaterialTheme.typography.labelLarge,
-                color = GlassTextPrimary,
+                color = TextPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = drop.text,
                 style = MaterialTheme.typography.bodyMedium,
-                color = GlassTextMuted,
+                color = TextMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -498,7 +498,7 @@ private fun CapturedNotificationRow(
             Icon(
                 imageVector = Icons.Rounded.PlayArrow,
                 contentDescription = "Replay droplet",
-                tint = IceCyanPrimary
+                tint = FrostPrimary
             )
         }
         IconButton(
@@ -510,7 +510,7 @@ private fun CapturedNotificationRow(
             Icon(
                 imageVector = Icons.Rounded.VisibilityOff,
                 contentDescription = if (isMuted) "Unmute app" else "Mute app",
-                tint = if (isMuted) LiquidAmber else GlassTextMuted
+                tint = if (isMuted) AccentAmber else TextMuted
             )
         }
     }

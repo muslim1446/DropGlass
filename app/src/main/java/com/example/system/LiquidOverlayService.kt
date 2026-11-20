@@ -1,8 +1,10 @@
 package com.example.system
 
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -12,6 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -23,10 +26,16 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.example.MainActivity
 import com.example.R
 import com.example.model.MediaCommandAction
 import com.example.ui.glass.WaterDropOverlayHost
 import com.example.ui.theme.DropGlassTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class LiquidOverlayService : Service(),
     LifecycleOwner,
@@ -36,6 +45,7 @@ class LiquidOverlayService : Service(),
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val store = ViewModelStore()
     private val savedStateController = SavedStateRegistryController.create(this)
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override val lifecycle: Lifecycle get() = lifecycleRegistry
     override val viewModelStore: ViewModelStore get() = store
@@ -47,6 +57,7 @@ class LiquidOverlayService : Service(),
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         savedStateController.performRestore(null)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
@@ -54,41 +65,93 @@ class LiquidOverlayService : Service(),
         windowManager = getSystemService(WindowManager::class.java)
         SystemBridgeHelper.ensureChannels(this)
         startForegroundCompat()
+        observeStore()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_HIDE -> {
+            ACTION_STOP -> {
                 detachOverlay()
-                LiveNotificationStore.setOverlayShowing(false)
                 stopSelf()
             }
+            ACTION_HIDE -> {
+                detachOverlay()
+                // Keep the engine alive so the next system notification can still
+                // surface outside the app without a fresh foreground start.
+            }
             else -> {
-                if (SystemBridgeHelper.canDrawOverlays(this)) {
-                    attachOverlayIfNeeded()
-                    LiveNotificationStore.setOverlayShowing(true)
-                } else {
+                if (!canHostOverlay()) {
                     stopSelf()
+                } else if (LiveNotificationStore.activeSystemDrop.value != null) {
+                    attachOverlayIfNeeded()
                 }
             }
         }
-        return START_NOT_STICKY
+        return START_STICKY
+    }
+
+    private fun canHostOverlay(): Boolean =
+        SystemBridgeHelper.canDrawOverlays(this) &&
+            LiveNotificationStore.latestConfig.value.enableSystemOverlay
+
+    private fun observeStore() {
+        serviceScope.launch {
+            LiveNotificationStore.latestConfig.collect { config ->
+                if (!config.enableSystemOverlay || !SystemBridgeHelper.canDrawOverlays(this@LiquidOverlayService)) {
+                    detachOverlay()
+                    stopSelf()
+                } else if (LiveNotificationStore.activeSystemDrop.value != null) {
+                    attachOverlayIfNeeded()
+                }
+            }
+        }
+        serviceScope.launch {
+            LiveNotificationStore.activeSystemDrop.collect { drop ->
+                if (drop == null) {
+                    detachOverlay()
+                } else if (canHostOverlay()) {
+                    attachOverlayIfNeeded()
+                }
+            }
+        }
     }
 
     private fun startForegroundCompat() {
+        val openIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val contentIntent = PendingIntent.getActivity(
+            this,
+            0,
+            openIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val notification = NotificationCompat.Builder(this, SystemBridgeHelper.OVERLAY_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.overlay_channel_desc))
+            .setContentIntent(contentIntent)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
             .setSilent(true)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
-        startForeground(FOREGROUND_ID, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ServiceCompat.startForeground(
+                this,
+                FOREGROUND_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            startForeground(FOREGROUND_ID, notification)
+        }
     }
 
     private fun attachOverlayIfNeeded() {
         if (overlayView != null) return
+        if (LiveNotificationStore.activeSystemDrop.value == null) return
+        if (!SystemBridgeHelper.canDrawOverlays(this)) return
         val wm = windowManager ?: return
 
         val detected = SystemBridgeHelper.detectHardwareCutoutFromService(this)
@@ -151,27 +214,29 @@ class LiquidOverlayService : Service(),
                             LiveNotificationStore.cycleQueuedDrop()
                         },
                         onOpenNotification = { drop ->
-                            LiveNotificationStore.openNotification(drop, this@LiquidOverlayService)
-                            LiveNotificationStore.clearActiveSystemDrop(drop.key ?: drop.id)
-                            hideIfEmpty()
+                            val opened = LiveNotificationStore.openNotification(drop, this@LiquidOverlayService)
+                            if (opened) {
+                                LiveNotificationStore.clearActiveSystemDrop(drop.key ?: drop.id)
+                            }
                         },
                         onSendReply = { drop, replyText ->
-                            LiveNotificationStore.sendInlineReply(
+                            val sent = LiveNotificationStore.sendInlineReply(
                                 drop = drop,
                                 replyText = replyText,
                                 context = this@LiquidOverlayService,
                                 actionIndex = drop.replyActionIndex
                             )
-                            LiveNotificationStore.clearActiveSystemDrop(drop.key ?: drop.id)
-                            hideIfEmpty()
+                            if (sent) {
+                                LiveNotificationStore.clearActiveSystemDrop(drop.key ?: drop.id)
+                            }
+                            sent
                         },
                         onTriggerAction = { drop, index ->
                             val keepOpen = drop.actions.getOrNull(index)?.title?.contains("Milestone", ignoreCase = true) == true ||
                                 drop.hasMediaSession || drop.category == com.example.model.DropCategory.MEDIA
-                            LiveNotificationStore.triggerAction(drop, index, this@LiquidOverlayService)
-                            if (!keepOpen) {
+                            val executed = LiveNotificationStore.triggerAction(drop, index, this@LiquidOverlayService)
+                            if (executed && !keepOpen) {
                                 LiveNotificationStore.clearActiveSystemDrop(drop.key ?: drop.id)
-                                hideIfEmpty()
                             }
                         },
                         onMediaControl = { drop, cmd ->
@@ -199,7 +264,6 @@ class LiquidOverlayService : Service(),
                         },
                         onSnooze = { drop ->
                             LiveNotificationStore.snoozeNotification(drop)
-                            hideIfEmpty()
                         },
                         onDismiss = { drop ->
                             if (drop != null) {
@@ -207,7 +271,6 @@ class LiquidOverlayService : Service(),
                             } else {
                                 LiveNotificationStore.clearActiveSystemDrop()
                             }
-                            hideIfEmpty()
                         }
                     )
                 }
@@ -217,8 +280,10 @@ class LiquidOverlayService : Service(),
         runCatching {
             wm.addView(composeView, params)
             overlayView = composeView
+            LiveNotificationStore.setOverlayShowing(true)
         }.onFailure {
-            stopSelf()
+            overlayView = null
+            LiveNotificationStore.setOverlayShowing(false)
         }
     }
 
@@ -242,26 +307,24 @@ class LiquidOverlayService : Service(),
         }
     }
 
-    private fun hideIfEmpty() {
-        if (LiveNotificationStore.activeSystemDrop.value == null) {
-            detachOverlay()
-            LiveNotificationStore.setOverlayShowing(false)
-            stopSelf()
-        }
-    }
-
     private fun detachOverlay() {
-        val view = overlayView ?: return
+        val view = overlayView ?: run {
+            LiveNotificationStore.setOverlayShowing(false)
+            return
+        }
         runCatching {
             windowManager?.removeViewImmediate(view)
         }
         overlayView = null
+        layoutParams = null
+        LiveNotificationStore.setOverlayShowing(false)
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        isRunning = false
         detachOverlay()
-        LiveNotificationStore.setOverlayShowing(false)
+        serviceScope.cancel()
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
@@ -274,23 +337,52 @@ class LiquidOverlayService : Service(),
         private const val FOREGROUND_ID = 7731
         private const val ACTION_SHOW = "com.example.ACTION_SHOW_DROP"
         private const val ACTION_HIDE = "com.example.ACTION_HIDE_DROP"
+        private const val ACTION_STOP = "com.example.ACTION_STOP_OVERLAY_ENGINE"
 
-        fun showCurrentDrop(context: Context) {
+        @Volatile
+        var isRunning: Boolean = false
+            private set
+
+        private fun startEngine(context: Context, action: String) {
             val intent = Intent(context, LiquidOverlayService::class.java).apply {
-                action = ACTION_SHOW
+                this.action = action
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
             }
         }
 
+        /** Start (or reuse) the persistent overlay engine without showing an empty window. */
+        fun ensureRunning(context: Context) {
+            startEngine(context, ACTION_SHOW)
+        }
+
+        /** Wake the engine and surface the currently pending drop, if any. */
+        fun showCurrentDrop(context: Context) {
+            startEngine(context, ACTION_SHOW)
+        }
+
+        /** Hide the current drop but keep the engine alive for the next alert. */
         fun hideDrop(context: Context) {
-            val intent = Intent(context, LiquidOverlayService::class.java).apply {
-                action = ACTION_HIDE
+            runCatching {
+                context.startService(
+                    Intent(context, LiquidOverlayService::class.java).apply { action = ACTION_HIDE }
+                )
             }
-            context.startService(intent)
+        }
+
+        /** Tear the engine down completely (overlay disabled or permission revoked). */
+        fun stop(context: Context) {
+            if (!isRunning) return
+            runCatching {
+                context.startService(
+                    Intent(context, LiquidOverlayService::class.java).apply { action = ACTION_STOP }
+                )
+            }
         }
     }
 }

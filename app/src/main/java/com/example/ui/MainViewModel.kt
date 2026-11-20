@@ -153,14 +153,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    fun handlePreviewReply(drop: DropNotification, replyText: String) {
+    fun handlePreviewReply(drop: DropNotification, replyText: String): Boolean {
+        val clean = replyText.trim()
+        if (clean.isEmpty()) return false
+
         val ctx = getApplication<Application>()
         if (drop.isLiveSystem) {
-            LiveNotificationStore.sendInlineReply(drop, replyText, ctx, drop.replyActionIndex)
+            val sent = LiveNotificationStore.sendInlineReply(
+                drop = drop,
+                replyText = clean,
+                context = ctx,
+                actionIndex = drop.replyActionIndex
+            )
+            if (!sent) {
+                _feedbackBanner.value = "This alert doesn't provide an inline reply action"
+                return false
+            }
         }
-        _feedbackBanner.value = "Sent reply to ${drop.title}: \"$replyText\""
-        if (_forcedStage.value == null) {
-            _previewDrop.value = null
+
+        // Keep the card visible and append the message so the reply is
+        // confirmed in place instead of silently making the drop disappear.
+        val youLine = DropMessageLine("You", clean, System.currentTimeMillis())
+        _previewDrop.value = drop.copy(
+            text = clean,
+            messageLines = (drop.messageLines + youLine).takeLast(3),
+            updateCount = drop.updateCount + 1
+        )
+        _feedbackBanner.value = "Reply sent"
+        return true
+    }
+
+    fun handlePreviewOpen(drop: DropNotification) {
+        val ctx = getApplication<Application>()
+        if (drop.isLiveSystem && LiveNotificationStore.openNotification(drop, ctx)) {
+            _feedbackBanner.value = "Opened ${drop.appName}"
+        } else {
+            _feedbackBanner.value = "This is a preview; no source app is attached"
         }
     }
 
@@ -173,28 +201,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        // Interactive local stage behavior for delivery milestone or mark read
+        // Walk the sample delivery forward, never backwards.
         if (drop.category == DropCategory.DELIVERY && action?.semantic == ActionSemantic.TRACK_ORDER) {
-            val currentStep = drop.progressInfo?.activeMilestoneIndex ?: 1
-            val nextStep = (currentStep + 1) % 4
-            val pcts = listOf(20, 50, 80, 100)
-            val etas = listOf("14 min", "8 min", "2 min", "Arrived")
+            val currentStep = (drop.progressInfo?.activeMilestoneIndex ?: 1).coerceIn(0, 3)
+            if (currentStep >= 3) {
+                _feedbackBanner.value = "This order is already delivered"
+                return
+            }
+            val nextStep = currentStep + 1
+            val pcts = listOf(25, 55, 80, 100)
+            val etas = listOf("14 min", "8 min", "2 min", "Delivered")
             val texts = listOf(
-                "Kitchen is packing your Matcha & Croissant",
-                "Courier Marcus picked up your order",
-                "Marcus is 220m away on Orchard Blvd",
-                "Order arrived at Main Lobby reception"
+                "Restaurant received your order",
+                "Courier picked up your order",
+                "Courier is 220 m away on Orchard Blvd",
+                "Order arrived at the lobby reception"
             )
             _previewDrop.value = drop.copy(
-                title = "Delivery · ETA ${etas[nextStep]}",
+                title = if (nextStep == 3) "Delivery · Delivered" else "Delivery · ${etas[nextStep]} away",
                 text = texts[nextStep],
                 progressInfo = drop.progressInfo?.copy(
                     progress = pcts[nextStep],
                     activeMilestoneIndex = nextStep,
-                    etaLabel = etas[nextStep]
+                    etaLabel = if (nextStep == 3) "Delivered" else etas[nextStep]
                 ),
                 updateCount = drop.updateCount + 1
             )
+            _feedbackBanner.value = if (nextStep == 3) "Order marked as delivered" else "Updated: ${texts[nextStep]}"
             return
         }
 
@@ -354,13 +387,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 packageName = "com.whatsapp",
                 appName = "Messages",
                 title = "Maya Lin",
-                text = "Just arrived downstairs — the glass lobby doors are unlocked.",
+                text = "I'm downstairs — can you buzz me in?",
                 messageLines = listOf(
-                    DropMessageLine("Maya Lin", "Flight touched down early!"),
-                    DropMessageLine("Maya Lin", "Just arrived downstairs — the glass lobby doors are unlocked.")
+                    DropMessageLine("Maya Lin", "Landed a little early."),
+                    DropMessageLine("Maya Lin", "I'm downstairs — can you buzz me in?")
                 ),
                 category = DropCategory.MESSAGE,
-                accentColorArgb = 0xFF7AD7FF.toInt(),
+                accentColorArgb = 0xFFAFC8D8.toInt(),
                 hasReplyAction = true,
                 replyLabel = "Reply",
                 replyActionIndex = 0,
@@ -374,11 +407,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 id = "sample_delivery",
                 packageName = "com.grab.delivery",
                 appName = "Courier Live",
-                title = "Delivery · ETA 2 min",
-                text = "Marcus is 220m away on Orchard Blvd",
+                title = "Delivery · 2 min away",
+                text = "Courier is 220 m away on Orchard Blvd",
                 subText = "2 min",
                 category = DropCategory.DELIVERY,
-                accentColorArgb = 0xFF4BE39D.toInt(),
+                accentColorArgb = 0xFF9DC5AA.toInt(),
                 progressInfo = DropProgressInfo(
                     progress = 80,
                     max = 100,
@@ -399,7 +432,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 text = "Solstice · Lossless 24-bit",
                 subText = "Playing",
                 category = DropCategory.MEDIA,
-                accentColorArgb = 0xFF7AF0DE.toInt(),
+                accentColorArgb = 0xFF9DC8C2.toInt(),
                 isMediaPlaying = true,
                 actions = listOf(
                     DropAction(0, "Previous", semantic = ActionSemantic.MEDIA_PREV),
@@ -411,10 +444,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 id = "sample_otp",
                 packageName = "com.google.android.apps.messaging",
                 appName = "2FA Auth",
-                title = "Security Verification",
-                text = "Your one-time verification code is 849201. Expires in 5 minutes.",
+                title = "Security code",
+                text = "Your verification code is 849201. It expires in 5 minutes.",
                 category = DropCategory.OTP,
-                accentColorArgb = 0xFFFFC46B.toInt(),
+                accentColorArgb = 0xFFD8B98B.toInt(),
                 detectedOtpCode = "849201",
                 actions = listOf(
                     DropAction(0, "Mark as Read", semantic = ActionSemantic.MARK_READ)
@@ -425,9 +458,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 packageName = "com.android.dialer",
                 appName = "Phone",
                 title = "Julian Mercer",
-                text = "Incoming HD Voice call · Mobile",
+                text = "Incoming call · Mobile",
                 category = DropCategory.CALL,
-                accentColorArgb = 0xFF4BE39D.toInt(),
+                accentColorArgb = 0xFF9DC5AA.toInt(),
                 actions = listOf(
                     DropAction(0, "Answer", semantic = ActionSemantic.ANSWER),
                     DropAction(1, "Decline", semantic = ActionSemantic.DECLINE)

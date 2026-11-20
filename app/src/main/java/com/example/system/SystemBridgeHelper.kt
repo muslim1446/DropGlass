@@ -346,16 +346,16 @@ object SystemBridgeHelper {
         val notification = NotificationCompat.Builder(context, TEST_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Elena Vance")
-            .setContentText("Just landed at Terminal 3 — meeting by the glass atrium in 10?")
+            .setContentText("Landed early. Meet by the west exit in 10?")
             .setStyle(
                 NotificationCompat.MessagingStyle(me)
-                    .addMessage("Flight touched down early!", System.currentTimeMillis() - 45_000L, sender)
-                    .addMessage("Just landed at Terminal 3 — meeting by the glass atrium in 10?", System.currentTimeMillis(), sender)
+                    .addMessage("Baggage is taking forever.", System.currentTimeMillis() - 45_000L, sender)
+                    .addMessage("Landed early. Meet by the west exit in 10?", System.currentTimeMillis(), sender)
             )
             .setSubText("Messages · Live Drop")
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setColor(0xFF7AD7FF.toInt())
+            .setColor(0xFFAFC8D8.toInt())
             .setAutoCancel(true)
             .setContentIntent(appOpenIntent(context, 101))
             .addAction(replyAction)
@@ -382,10 +382,10 @@ object SystemBridgeHelper {
         }
         val etaLabels = listOf("14 min", "8 min", "2 min", "Arrived")
         val statusTexts = listOf(
-            "Kitchen is packing your Matcha & Croissant",
-            "Courier Marcus picked up your order",
-            "Marcus is 220m away on Orchard Blvd",
-            "Order arrived at Main Lobby reception"
+            "Restaurant is preparing your order",
+            "Courier picked up your order",
+            "Courier is 220 m away",
+            "Order delivered to reception"
         )
         val milestones = arrayListOf("Ordered", "Picked Up", "En Route", "Arrived")
 
@@ -424,8 +424,8 @@ object SystemBridgeHelper {
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Delivery · ETA ${etaLabels[clampedStep]}")
             .setContentText(statusTexts[clampedStep])
-            .setSubText("Courier Live")
-            .setColor(0xFF4BE39D.toInt())
+            .setSubText("Courier live")
+            .setColor(0xFF9DC5AA.toInt())
             .setOnlyAlertOnce(clampedStep != 0)
             .setContentIntent(appOpenIntent(context, 102))
             .addAction(
@@ -450,17 +450,17 @@ object SystemBridgeHelper {
                 .setProgress(progressPct)
                 .setProgressSegments(
                     listOf(
-                        Notification.ProgressStyle.Segment(25).setColor(Color.parseColor("#4BE39D")),
-                        Notification.ProgressStyle.Segment(25).setColor(Color.parseColor("#7AD7FF")),
-                        Notification.ProgressStyle.Segment(25).setColor(Color.parseColor("#7AF0DE")),
-                        Notification.ProgressStyle.Segment(25).setColor(Color.parseColor("#BBEBFF"))
+                        Notification.ProgressStyle.Segment(25).setColor(Color.parseColor("#9DC5AA")),
+                        Notification.ProgressStyle.Segment(25).setColor(Color.parseColor("#AFC8D8")),
+                        Notification.ProgressStyle.Segment(25).setColor(Color.parseColor("#9DC8C2")),
+                        Notification.ProgressStyle.Segment(25).setColor(Color.parseColor("#C0B9DE"))
                     )
                 )
                 .setProgressPoints(
                     listOf(
-                        Notification.ProgressStyle.Point(25).setColor(Color.parseColor("#4BE39D")),
-                        Notification.ProgressStyle.Point(50).setColor(Color.parseColor("#7AD7FF")),
-                        Notification.ProgressStyle.Point(80).setColor(Color.parseColor("#7AF0DE"))
+                        Notification.ProgressStyle.Point(25).setColor(Color.parseColor("#9DC5AA")),
+                        Notification.ProgressStyle.Point(50).setColor(Color.parseColor("#AFC8D8")),
+                        Notification.ProgressStyle.Point(80).setColor(Color.parseColor("#9DC8C2"))
                     )
                 )
             builder.setStyle(ps)
@@ -494,10 +494,10 @@ object SystemBridgeHelper {
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Security Verification")
             .setContentText("Your one-time verification code is 849201. Expires in 5 minutes.")
-            .setSubText("2FA Auth")
+            .setSubText("2FA auth")
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setColor(0xFFFFC46B.toInt())
+            .setColor(0xFFD8B98B.toInt())
             .setAutoCancel(true)
             .setContentIntent(appOpenIntent(context, 103))
             .addAction(
@@ -521,9 +521,9 @@ object SystemBridgeHelper {
     ) {
         ensureChannels(context)
         val tracks = listOf(
-            "Midnight Refraction" to "Solstice · Lossless 24-bit",
-            "Liquid Horizon" to "Klangwelt · Spatial Mix",
-            "Glass Prism" to "Aether · Live Session"
+            "Midnight Refraction" to "Solstice · Lossless",
+            "Liquid Horizon" to "Klangwelt · Spatial mix",
+            "Glass Prism" to "Aether · Live session"
         )
         val track = tracks[trackIndex % tracks.size]
 
@@ -554,7 +554,7 @@ object SystemBridgeHelper {
             .setSubText(if (isPlaying) "Playing" else "Paused")
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setColor(0xFF7AF0DE.toInt())
+            .setColor(0xFF9DC8C2.toInt())
             .setOnlyAlertOnce(true)
             .setContentIntent(appOpenIntent(context, 104))
             .addAction(android.R.drawable.ic_media_previous, "Previous", mediaPending(DropTestActionReceiver.ACTION_MEDIA_PREV, 330))

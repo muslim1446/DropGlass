@@ -49,11 +49,12 @@ import com.example.ui.StudioUiState
 import com.example.ui.components.LiquidGlassPanel
 import com.example.ui.components.OpticalSliderRow
 import com.example.ui.glass.WaterDropOverlayHost
-import com.example.ui.theme.GlassTextMuted
-import com.example.ui.theme.GlassTextPrimary
-import com.example.ui.theme.GlassTextSecondary
-import com.example.ui.theme.IceCyanPrimary
-import com.example.ui.theme.LiquidEmerald
+import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.FrostPrimary
+import com.example.ui.theme.AccentSage
+import com.example.ui.theme.CanvasBlack
 import kotlin.math.roundToInt
 
 @Composable
@@ -110,12 +111,12 @@ fun OpticsScreen(
                     Text(
                         text = "Camera & Optics",
                         style = MaterialTheme.typography.headlineMedium,
-                        color = GlassTextPrimary
+                        color = TextPrimary
                     )
                     Text(
                         text = "Watch the live lens ring above align directly around your OPPO CPH2773 selfie camera as you adjust.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = GlassTextSecondary
+                        color = TextSecondary
                     )
                 }
             }
@@ -124,7 +125,7 @@ fun OpticsScreen(
             item {
                 LiquidGlassPanel(
                     modifier = Modifier.padding(horizontal = 20.dp),
-                    accentGlow = IceCyanPrimary
+                    accentGlow = FrostPrimary
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -133,13 +134,13 @@ fun OpticsScreen(
                         Icon(
                             imageVector = Icons.Rounded.CameraFront,
                             contentDescription = null,
-                            tint = IceCyanPrimary,
+                            tint = FrostPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
                             text = "Selfie Cutout Telemetry",
                             style = MaterialTheme.typography.titleMedium,
-                            color = GlassTextPrimary
+                            color = TextPrimary
                         )
                     }
                     Spacer(modifier = Modifier.height(10.dp))
@@ -150,7 +151,7 @@ fun OpticsScreen(
                             "Device: ${cutout.deviceModel.ifBlank { "Android" }} (${cutout.screenWidthDp.roundToInt()}×${cutout.screenHeightDp.roundToInt()}dp) · Profile: ${config.preset.label}"
                         },
                         style = MaterialTheme.typography.labelMedium,
-                        color = if (cutout.hasHardwareCutout) LiquidEmerald else GlassTextSecondary
+                        color = if (cutout.hasHardwareCutout) AccentSage else TextSecondary
                     )
                     Spacer(modifier = Modifier.height(14.dp))
                     Row(
@@ -162,14 +163,14 @@ fun OpticsScreen(
                             shape = RoundedCornerShape(18.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (config.preset == CameraPreset.OPPO_CPH2773) {
-                                    IceCyanPrimary
+                                    FrostPrimary
                                 } else {
                                     Color.White.copy(alpha = 0.12f)
                                 },
                                 contentColor = if (config.preset == CameraPreset.OPPO_CPH2773) {
                                     Color(0xFF041928)
                                 } else {
-                                    GlassTextPrimary
+                                    TextPrimary
                                 }
                             ),
                             modifier = Modifier
@@ -193,7 +194,7 @@ fun OpticsScreen(
                             Text(
                                 text = "Auto Hardware",
                                 style = MaterialTheme.typography.labelLarge,
-                                color = GlassTextPrimary
+                                color = TextPrimary
                             )
                         }
                     }
@@ -204,7 +205,7 @@ fun OpticsScreen(
             item {
                 LiquidGlassPanel(
                     modifier = Modifier.padding(horizontal = 20.dp),
-                    accentGlow = IceCyanPrimary
+                    accentGlow = FrostPrimary
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -213,13 +214,13 @@ fun OpticsScreen(
                         Icon(
                             imageVector = Icons.Rounded.LensBlur,
                             contentDescription = null,
-                            tint = IceCyanPrimary,
+                            tint = FrostPrimary,
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
                             text = "Liquid Glass Material",
                             style = MaterialTheme.typography.titleMedium,
-                            color = GlassTextPrimary
+                            color = TextPrimary
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
@@ -232,17 +233,17 @@ fun OpticsScreen(
                                     .height(54.dp)
                                     .clip(RoundedCornerShape(16.dp))
                                     .background(
-                                        if (selected) IceCyanPrimary.copy(alpha = 0.16f)
+                                        if (selected) FrostPrimary.copy(alpha = 0.16f)
                                         else Color.White.copy(alpha = 0.04f)
                                     )
                                     .border(
                                         1.dp,
-                                        if (selected) IceCyanPrimary else Color.White.copy(alpha = 0.10f),
+                                        if (selected) FrostPrimary else Color.White.copy(alpha = 0.10f),
                                         RoundedCornerShape(16.dp)
                                     )
                                     .clickable(
                                         interactionSource = remember { MutableInteractionSource() },
-                                        indication = ripple(color = IceCyanPrimary)
+                                        indication = ripple(color = FrostPrimary)
                                     ) { onSelectGlassStyle(style) }
                                     .padding(horizontal = 14.dp)
                                     .testTag("glass_style_${style.name.lowercase()}"),
@@ -253,19 +254,19 @@ fun OpticsScreen(
                                     Text(
                                         text = style.displayName,
                                         style = MaterialTheme.typography.labelLarge,
-                                        color = GlassTextPrimary
+                                        color = TextPrimary
                                     )
                                     Text(
                                         text = style.subtitle,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = GlassTextMuted
+                                        color = TextMuted
                                     )
                                 }
                                 if (selected) {
                                     Icon(
                                         imageVector = Icons.Rounded.CheckCircle,
                                         contentDescription = "Selected",
-                                        tint = IceCyanPrimary,
+                                        tint = FrostPrimary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -281,7 +282,7 @@ fun OpticsScreen(
                     Text(
                         text = "Punch-Hole Geometry",
                         style = MaterialTheme.typography.titleMedium,
-                        color = GlassTextPrimary
+                        color = TextPrimary
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -336,7 +337,7 @@ fun OpticsScreen(
                     Text(
                         text = "Light & Surface Tension",
                         style = MaterialTheme.typography.titleMedium,
-                        color = GlassTextPrimary
+                        color = TextPrimary
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 

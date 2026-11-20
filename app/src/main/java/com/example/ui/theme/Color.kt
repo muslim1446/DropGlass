@@ -2,21 +2,28 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val ObsidianVoid = Color(0xFF04060A)
-val ObsidianSurface = Color(0xFF0B101B)
-val ObsidianSurfaceHigh = Color(0xFF131B2C)
-val ObsidianOutline = Color(0xFF283752)
+/*
+ * A quiet, near-neutral palette. The canvas is true black so the glass reads as
+ * material rather than neon; colour is reserved for notification accents and
+ * status, never for large surfaces.
+ */
 
-val IceCyanPrimary = Color(0xFF7AD7FF)
-val IceCyanBright = Color(0xFFBBEBFF)
-val SapphireDeep = Color(0xFF1A4B8C)
+val CanvasBlack = Color(0xFF07080A)
+val SurfaceOne = Color(0xFF101215)
+val SurfaceTwo = Color(0xFF181B1F)
+val SurfaceThree = Color(0xFF22262C)
+val Hairline = Color(0xFF2A2F36)
 
-val PrismAqua = Color(0xFF7AF0DE)
-val PrismViolet = Color(0xFF9FB8FF)
-val LiquidAmber = Color(0xFFFFC46B)
-val LiquidEmerald = Color(0xFF4BE39D)
-val LiquidCrimson = Color(0xFFFF5E7E)
+val FrostPrimary = Color(0xFFAFC8D8)
+val FrostBright = Color(0xFFDCEAF3)
+val FrostDim = Color(0xFF7F96A5)
 
-val GlassTextPrimary = Color(0xFFF5F9FF)
-val GlassTextSecondary = Color(0xFFB2C2DB)
-val GlassTextMuted = Color(0xFF7587A6)
+val AccentTeal = Color(0xFF9DC8C2)
+val AccentLilac = Color(0xFFC0B9DE)
+val AccentAmber = Color(0xFFD8B98B)
+val AccentSage = Color(0xFF9DC5AA)
+val AccentRose = Color(0xFFD9A3A3)
+
+val TextPrimary = Color(0xFFF2F5F7)
+val TextSecondary = Color(0xFFA9B2BA)
+val TextMuted = Color(0xFF727C86)

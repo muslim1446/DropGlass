@@ -14,13 +14,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Hub
@@ -55,6 +59,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.system.LiquidOverlayService
 import com.example.system.SystemBridgeHelper
 import com.example.ui.MainViewModel
 import com.example.ui.StudioTab
@@ -63,10 +68,10 @@ import com.example.ui.screens.BridgeScreen
 import com.example.ui.screens.OpticsScreen
 import com.example.ui.screens.StageScreen
 import com.example.ui.theme.DropGlassTheme
-import com.example.ui.theme.GlassTextMuted
-import com.example.ui.theme.GlassTextPrimary
-import com.example.ui.theme.IceCyanPrimary
-import com.example.ui.theme.ObsidianSurface
+import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.FrostPrimary
+import com.example.ui.theme.SurfaceOne
 
 class MainActivity : ComponentActivity() {
 
@@ -127,6 +132,16 @@ private fun DropGlassAppShell(viewModel: MainViewModel) {
         viewModel.clearFeedback()
     }
 
+    // Keep the overlay engine alive in the background so alerts surface over other
+    // apps, not only while DropGlass itself is on screen.
+    LaunchedEffect(uiState.config.enableSystemOverlay, uiState.isOverlayPermissionGranted) {
+        if (uiState.config.enableSystemOverlay && uiState.isOverlayPermissionGranted) {
+            LiquidOverlayService.ensureRunning(context)
+        } else {
+            LiquidOverlayService.stop(context)
+        }
+    }
+
     if (uiState.selectedTab != StudioTab.STAGE) {
         BackHandler {
             viewModel.selectTab(StudioTab.STAGE)
@@ -134,7 +149,7 @@ private fun DropGlassAppShell(viewModel: MainViewModel) {
     }
 
     val activeAccent = remember(uiState.previewDrop?.accentColorArgb) {
-        uiState.previewDrop?.let { Color(it.accentColorArgb) } ?: IceCyanPrimary
+        uiState.previewDrop?.let { Color(it.accentColorArgb) } ?: FrostPrimary
     }
 
     val requestPostNotifications = {
@@ -188,6 +203,7 @@ private fun DropGlassAppShell(viewModel: MainViewModel) {
                             onTriggerPreset = viewModel::triggerPreviewPreset,
                             onSelectForcedStage = viewModel::setForcedStage,
                             onReplyPreview = viewModel::handlePreviewReply,
+                            onOpenPreview = viewModel::handlePreviewOpen,
                             onActionPreview = viewModel::handlePreviewAction,
                             onMediaPreview = viewModel::handlePreviewMediaControl,
                             onCopyOtp = viewModel::handleCopyOtp,
@@ -246,48 +262,57 @@ private fun DropGlassBottomBar(
     selectedTab: StudioTab,
     onSelectTab: (StudioTab) -> Unit
 ) {
-    NavigationBar(
-        containerColor = ObsidianSurface.copy(alpha = 0.90f),
-        contentColor = GlassTextPrimary,
-        tonalElevation = 0.dp,
-        windowInsets = WindowInsets.navigationBars
-    ) {
-        StudioTab.entries.forEach { tab ->
-            val selected = selectedTab == tab
-            val label = when (tab) {
-                StudioTab.STAGE -> stringResource(R.string.tab_stage)
-                StudioTab.OPTICS -> stringResource(R.string.tab_optics)
-                StudioTab.BRIDGE -> stringResource(R.string.tab_bridge)
+    Column {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Color.White.copy(alpha = 0.06f))
+        )
+        NavigationBar(
+            containerColor = CanvasBlack.copy(alpha = 0.96f),
+            contentColor = TextPrimary,
+            tonalElevation = 0.dp,
+            windowInsets = WindowInsets.navigationBars
+        ) {
+            StudioTab.entries.forEach { tab ->
+                val selected = selectedTab == tab
+                val label = when (tab) {
+                    StudioTab.STAGE -> stringResource(R.string.tab_stage)
+                    StudioTab.OPTICS -> stringResource(R.string.tab_optics)
+                    StudioTab.BRIDGE -> stringResource(R.string.tab_bridge)
+                }
+                val icon = when (tab) {
+                    StudioTab.STAGE -> if (selected) Icons.Rounded.WaterDrop else Icons.Outlined.WaterDrop
+                    StudioTab.OPTICS -> if (selected) Icons.Rounded.Tune else Icons.Outlined.Tune
+                    StudioTab.BRIDGE -> if (selected) Icons.Rounded.Hub else Icons.Outlined.Hub
+                }
+                NavigationBarItem(
+                    selected = selected,
+                    onClick = { onSelectTab(tab) },
+                    icon = {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = label,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = FrostPrimary,
+                        selectedTextColor = TextPrimary,
+                        indicatorColor = Color.White.copy(alpha = 0.07f),
+                        unselectedIconColor = TextMuted,
+                        unselectedTextColor = TextMuted
+                    ),
+                    modifier = Modifier.testTag("nav_${tab.name.lowercase()}")
+                )
             }
-            val icon = when (tab) {
-                StudioTab.STAGE -> if (selected) Icons.Rounded.WaterDrop else Icons.Outlined.WaterDrop
-                StudioTab.OPTICS -> if (selected) Icons.Rounded.Tune else Icons.Outlined.Tune
-                StudioTab.BRIDGE -> if (selected) Icons.Rounded.Hub else Icons.Outlined.Hub
-            }
-            NavigationBarItem(
-                selected = selected,
-                onClick = { onSelectTab(tab) },
-                icon = {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = label
-                    )
-                },
-                label = {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = IceCyanPrimary,
-                    selectedTextColor = GlassTextPrimary,
-                    indicatorColor = IceCyanPrimary.copy(alpha = 0.18f),
-                    unselectedIconColor = GlassTextMuted,
-                    unselectedTextColor = GlassTextMuted
-                ),
-                modifier = Modifier.testTag("nav_${tab.name.lowercase()}")
-            )
         }
     }
 }
@@ -298,12 +323,12 @@ private fun DropGlassNavRail(
     onSelectTab: (StudioTab) -> Unit
 ) {
     NavigationRail(
-        containerColor = ObsidianSurface.copy(alpha = 0.86f),
-        contentColor = GlassTextPrimary,
+        containerColor = CanvasBlack,
+        contentColor = TextPrimary,
         modifier = Modifier
             .fillMaxHeight()
-            .background(ObsidianSurface.copy(alpha = 0.86f))
-            .padding(top = 24.dp)
+            .background(CanvasBlack)
+            .padding(top = 24.dp, start = 8.dp, end = 8.dp)
     ) {
         StudioTab.entries.forEach { tab ->
             val selected = selectedTab == tab
@@ -320,14 +345,14 @@ private fun DropGlassNavRail(
             NavigationRailItem(
                 selected = selected,
                 onClick = { onSelectTab(tab) },
-                icon = { Icon(imageVector = icon, contentDescription = label) },
-                label = { Text(label) },
+                icon = { Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(22.dp)) },
+                label = { Text(label, style = MaterialTheme.typography.labelSmall) },
                 colors = NavigationRailItemDefaults.colors(
-                    selectedIconColor = IceCyanPrimary,
-                    selectedTextColor = GlassTextPrimary,
-                    indicatorColor = IceCyanPrimary.copy(alpha = 0.18f),
-                    unselectedIconColor = GlassTextMuted,
-                    unselectedTextColor = GlassTextMuted
+                    selectedIconColor = FrostPrimary,
+                    selectedTextColor = TextPrimary,
+                    indicatorColor = Color.White.copy(alpha = 0.07f),
+                    unselectedIconColor = TextMuted,
+                    unselectedTextColor = TextMuted
                 ),
                 modifier = Modifier.testTag("rail_${tab.name.lowercase()}")
             )

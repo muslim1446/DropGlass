@@ -11,10 +11,10 @@ enum class DropStage(val label: String, val index: Int) {
 }
 
 enum class GlassStyle(val displayName: String, val subtitle: String) {
-    CRYSTAL_CLEAR("Crystal Clear", "Apple Liquid Glass optical refraction"),
-    OBSIDIAN_SMOKE("Obsidian Smoke", "Deep smoked AMOLED contrast glass"),
-    IRIDESCENT_PRISM("Iridescent Prism", "Spectral caustic edge dispersion"),
-    COLOROS_ADAPTIVE("ColorOS Adaptive", "Matches source app luminance & hue")
+    CRYSTAL_CLEAR("Clear", "Light, cool glass with a crisp edge"),
+    OBSIDIAN_SMOKE("Smoked", "Dark, high-contrast glass for bright content"),
+    IRIDESCENT_PRISM("Iridescent", "A faint spectral shift along the rim"),
+    COLOROS_ADAPTIVE("Adaptive", "Tinted by the source app's colour")
 }
 
 enum class CameraPreset(val label: String) {
@@ -38,6 +38,7 @@ data class GlassOpticsConfig(
     val autoDismissSeconds: Float = 5.0f,
     val enableSystemOverlay: Boolean = true,
     val suppressOngoing: Boolean = true,
+    val avoidSystemBanners: Boolean = true,
     val useSystemDynamicColor: Boolean = false,
     val blockedPackages: Set<String> = emptySet()
 ) {
@@ -137,7 +138,7 @@ data class DropNotification(
     val conversationTitle: String? = null,
     val timestampMillis: Long = System.currentTimeMillis(),
     val category: DropCategory = DropCategory.MESSAGE,
-    val accentColorArgb: Int = 0xFF7AD7FF.toInt(),
+    val accentColorArgb: Int = 0xFFAFC8D8.toInt(),
     val isLiveSystem: Boolean = false,
     val hasReplyAction: Boolean = false,
     val replyLabel: String? = null,

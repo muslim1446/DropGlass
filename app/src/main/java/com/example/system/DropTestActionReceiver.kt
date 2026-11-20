@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
 import androidx.core.app.RemoteInput
@@ -27,6 +28,7 @@ class DropTestActionReceiver : BroadcastReceiver() {
                     val me = Person.Builder().setName("You").build()
                     val updated = NotificationCompat.Builder(context, SystemBridgeHelper.TEST_CHANNEL_ID)
                         .setSmallIcon(R.drawable.ic_launcher_foreground)
+                        .setContentTitle("Elena Vance")
                         .setStyle(
                             NotificationCompat.MessagingStyle(me)
                                 .addMessage("Just landed at Terminal 3 — meeting by the glass atrium in 10?", System.currentTimeMillis() - 5000L, sender)
@@ -37,6 +39,10 @@ class DropTestActionReceiver : BroadcastReceiver() {
                         .setPriority(NotificationCompat.PRIORITY_LOW)
                         .setOnlyAlertOnce(true)
                         .setAutoCancel(true)
+                        .setColor(0xFFAFC8D8.toInt())
+                        .addExtras(Bundle().apply {
+                            putBoolean(SystemBridgeHelper.EXTRA_IS_TEST_DROP, true)
+                        })
                         .build()
                     nm.notify(notifId, updated)
                 }
@@ -49,7 +55,8 @@ class DropTestActionReceiver : BroadcastReceiver() {
 
             ACTION_DELIVERY_ADVANCE -> {
                 val currentStep = intent.getIntExtra(EXTRA_DELIVERY_STEP, 1)
-                val nextStep = (currentStep + 1) % 4
+                // Advance monotonically; delivered is terminal instead of looping back to "Ordered".
+                val nextStep = (currentStep + 1).coerceAtMost(3)
                 SystemBridgeHelper.postTestDeliveryNotification(context, step = nextStep, notifId = notifId)
             }
 

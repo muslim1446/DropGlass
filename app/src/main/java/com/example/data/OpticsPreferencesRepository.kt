@@ -35,6 +35,7 @@ class OpticsPreferencesRepository(private val context: Context) {
         val AUTO_DISMISS_SEC = floatPreferencesKey("auto_dismiss_seconds")
         val ENABLE_OVERLAY = booleanPreferencesKey("enable_system_overlay")
         val SUPPRESS_ONGOING = booleanPreferencesKey("suppress_ongoing")
+        val AVOID_BANNERS = booleanPreferencesKey("avoid_system_banners")
         val DYNAMIC_COLOR = booleanPreferencesKey("use_system_dynamic_color")
         val BLOCKED_PACKAGES = stringSetPreferencesKey("blocked_packages")
     }
@@ -58,6 +59,7 @@ class OpticsPreferencesRepository(private val context: Context) {
             autoDismissSeconds = prefs[Keys.AUTO_DISMISS_SEC] ?: 4.5f,
             enableSystemOverlay = prefs[Keys.ENABLE_OVERLAY] ?: true,
             suppressOngoing = prefs[Keys.SUPPRESS_ONGOING] ?: true,
+            avoidSystemBanners = prefs[Keys.AVOID_BANNERS] ?: true,
             useSystemDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: false,
             blockedPackages = prefs[Keys.BLOCKED_PACKAGES] ?: emptySet()
         )
@@ -81,6 +83,7 @@ class OpticsPreferencesRepository(private val context: Context) {
                 autoDismissSeconds = prefs[Keys.AUTO_DISMISS_SEC] ?: 4.5f,
                 enableSystemOverlay = prefs[Keys.ENABLE_OVERLAY] ?: true,
                 suppressOngoing = prefs[Keys.SUPPRESS_ONGOING] ?: true,
+                avoidSystemBanners = prefs[Keys.AVOID_BANNERS] ?: true,
                 useSystemDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: false,
                 blockedPackages = prefs[Keys.BLOCKED_PACKAGES] ?: emptySet()
             )
@@ -98,6 +101,7 @@ class OpticsPreferencesRepository(private val context: Context) {
             prefs[Keys.AUTO_DISMISS_SEC] = updated.autoDismissSeconds
             prefs[Keys.ENABLE_OVERLAY] = updated.enableSystemOverlay
             prefs[Keys.SUPPRESS_ONGOING] = updated.suppressOngoing
+            prefs[Keys.AVOID_BANNERS] = updated.avoidSystemBanners
             prefs[Keys.DYNAMIC_COLOR] = updated.useSystemDynamicColor
             prefs[Keys.BLOCKED_PACKAGES] = updated.blockedPackages
         }

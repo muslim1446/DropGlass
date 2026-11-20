@@ -1,8 +1,6 @@
 {
-  "name": "KSSM Recall",
-  "description": "Cognitive-science KSSM Form 4 & 5 Pure Science and Add Math study companion with progressive section reveal and Likert mastery tracking",
+  "name": "DropGlass",
+  "description": "A camera-aware Android notification overlay: incoming alerts glide in beneath the selfie cutout, with inline replies, live delivery progress, and quiet glass styling.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": []
 }

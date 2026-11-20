@@ -2,8 +2,10 @@ package com.example.system
 
 import android.app.Notification
 import android.app.Person
+import android.content.ComponentName
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.media.MediaMetadata
@@ -54,6 +56,19 @@ class DropNotificationListenerService : NotificationListenerService(),
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         LiveNotificationStore.setListenerConnected(false)
+        // The system can drop the binding after an app update or memory trim.
+        // Ask it to reconnect so the overlay keeps receiving alerts.
+        serviceScope.launch {
+            kotlinx.coroutines.delay(750)
+            runCatching {
+                requestRebind(
+                    ComponentName(
+                        this@DropNotificationListenerService,
+                        DropNotificationListenerService::class.java
+                    )
+                )
+            }
+        }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -83,7 +98,7 @@ class DropNotificationListenerService : NotificationListenerService(),
                 notification.category != Notification.CATEGORY_CALL &&
                 notification.category != Notification.CATEGORY_TRANSPORT &&
                 !hasProgress &&
-                !isDeliveryNotification(sbn.packageName, extras)
+                !isDeliveryPackage(sbn.packageName)
             ) {
                 return@launch
             }
@@ -150,18 +165,7 @@ class DropNotificationListenerService : NotificationListenerService(),
             val replyAction = replyDropAction?.let { rawActions.getOrNull(it.index) }
             val remoteInput = replyAction?.remoteInputs?.firstOrNull()
 
-            val accentColor = if (notification.color != 0) {
-                notification.color
-            } else {
-                when (category) {
-                    DropCategory.CALL -> 0xFF4BE39D.toInt()
-                    DropCategory.MEDIA -> 0xFF7AF0DE.toInt()
-                    DropCategory.DELIVERY -> 0xFF4BE39D.toInt()
-                    DropCategory.OTP -> 0xFFFFC46B.toInt()
-                    DropCategory.MESSAGE -> 0xFF7AD7FF.toInt()
-                    DropCategory.SYSTEM -> 0xFFFFC46B.toInt()
-                }
-            }
+            val accentColor = resolveAccentColor(notification.color, iconBitmap, category)
 
             val isMediaPlaying = if (mediaController != null) {
                 playbackPlaying
@@ -283,7 +287,10 @@ class DropNotificationListenerService : NotificationListenerService(),
         title: String,
         message: String
     ): DropProgressInfo? {
-        val customMilestones = extras.getStringArrayList(SystemBridgeHelper.EXTRA_DELIVERY_MILESTONES)
+        val customMilestones = extras
+            .getStringArrayList(SystemBridgeHelper.EXTRA_DELIVERY_MILESTONES)
+            ?.mapNotNull { it?.trim()?.takeIf(String::isNotEmpty) }
+            ?.takeIf { it.isNotEmpty() }
         val customStep = extras.getInt(SystemBridgeHelper.EXTRA_DELIVERY_ACTIVE_STEP, -1)
         val customEta = extras.getString(SystemBridgeHelper.EXTRA_DELIVERY_ETA)
 
@@ -291,37 +298,56 @@ class DropNotificationListenerService : NotificationListenerService(),
         val progress = extras.getInt(Notification.EXTRA_PROGRESS, 0)
         val indeterminate = extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE, false)
 
-        val hasStandardProgress = max > 0 || indeterminate || customStep >= 0
-        if (!hasStandardProgress) return null
+        val hasStandardProgress = max > 0 || indeterminate
+        val hasCustomStep = customStep >= 0
+        if (!hasStandardProgress && !hasCustomStep) return null
 
+        // Report the real values the posting app supplied. No synthetic minimum fill.
         val effectiveMax = if (max > 0) max else 100
-        val effectiveProgress = if (max > 0) progress else when (customStep) {
-            0 -> 20
-            1 -> 50
-            2 -> 80
-            3 -> 100
+        val effectiveProgress = when {
+            max > 0 -> progress.coerceIn(0, max)
+            hasCustomStep -> when (customStep) {
+                0 -> 20
+                1 -> 50
+                2 -> 80
+                else -> 100
+            }
             else -> 0
         }
 
-        val isDelivery = customStep >= 0 || isDeliveryNotification(packageName, extras) ||
-            "$title $message".containsAny("delivery", "arriving", "driver", "courier", "eta", "rider", "order", "pickup")
-
-        val milestones = customMilestones?.toList()
-            ?: if (isDelivery) listOf("Ordered", "Picked Up", "En Route", "Arrived") else emptyList()
-
-        val activeIndex = if (customStep >= 0) {
-            customStep
-        } else if (milestones.isNotEmpty() && effectiveMax > 0) {
-            val ratio = effectiveProgress.toFloat() / effectiveMax.toFloat()
-            when {
-                ratio >= 0.95f -> 3
-                ratio >= 0.60f -> 2
-                ratio >= 0.30f -> 1
-                else -> 0
-            }
-        } else {
-            -1
+        // Milestones are a delivery-only concept. Don't fabricate "Ordered / Picked up"
+        // for downloads, media playback, or unrelated progress notifications.
+        val isDelivery = isDeliveryNotification(packageName, extras) ||
+            hasCustomStep ||
+            customMilestones != null
+        val milestones = when {
+            !isDelivery -> emptyList()
+            customMilestones != null -> customMilestones
+            else -> listOf("Ordered", "Picked up", "On the way", "Delivered")
         }
+
+        val activeIndex = when {
+            milestones.isEmpty() -> -1
+            hasCustomStep && !indeterminate ->
+                customStep.coerceIn(0, milestones.lastIndex)
+            indeterminate -> -1
+            effectiveMax > 0 -> {
+                val ratio = effectiveProgress.toFloat() / effectiveMax.toFloat()
+                (ratio * milestones.size).toInt().coerceIn(0, milestones.lastIndex)
+            }
+            else -> 0
+        }
+
+        // Only surface text that actually reads like an arrival estimate.
+        val etaCandidates = listOfNotNull(
+            customEta,
+            extras.getCharSequence(Notification.EXTRA_INFO_TEXT)?.toString(),
+            extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()
+        )
+        val etaLabel = etaCandidates
+            .firstOrNull { looksLikeEta(it) }
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
 
         return DropProgressInfo(
             progress = effectiveProgress,
@@ -329,16 +355,114 @@ class DropNotificationListenerService : NotificationListenerService(),
             indeterminate = indeterminate,
             milestoneLabels = milestones,
             activeMilestoneIndex = activeIndex,
-            etaLabel = customEta ?: extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()
+            etaLabel = etaLabel
         )
+    }
+
+    private fun looksLikeEta(raw: String?): Boolean {
+        val text = raw?.trim().orEmpty()
+        if (text.isEmpty() || text.length > 48) return false
+        val timePattern = Regex(
+            """(?i)\b(\d{1,3}\s*(?:sec|secs|second|seconds|min|mins|minute|minutes|hr|hrs|hour|hours)|\d{1,2}:\d{2}\s*(?:am|pm)?|arriving|arrival|due|now|delivered)\b"""
+        )
+        return timePattern.containsMatchIn(text)
     }
 
     private fun isDeliveryNotification(packageName: String, extras: Bundle): Boolean {
         if (extras.getString(SystemBridgeHelper.EXTRA_TEST_CATEGORY) == "DELIVERY") return true
+        val hasProgress = extras.getInt(Notification.EXTRA_PROGRESS_MAX, 0) > 0 ||
+            extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE, false)
+        return hasProgress && isDeliveryPackage(packageName)
+    }
+
+    private fun isDeliveryPackage(packageName: String): Boolean {
         val pkgLower = packageName.lowercase()
         return pkgLower.containsAny(
-            "uber", "grab", "gojek", "doordash", "deliveroo", "foodpanda",
-            "shopee", "lazada", "fedex", "dhl", "ups", "lyft", "instacart", "postmates"
+            "uber", "ubereats", "grab", "gojek", "doordash", "deliveroo", "foodpanda",
+            "glovo", "instacart", "postmates", "swiggy", "zomato", "talabat", "careem",
+            "delivery", "courier", "shopeefood", "lalamove", "ninjavan", "ninja.van",
+            "poslaju", "j&t", "jnt", "fedex", "dhl", "ups", "amazon", "shopee", "lazada",
+            "lyft", "bolt"
+        )
+    }
+
+    private fun resolveAccentColor(rawColor: Int, icon: Bitmap?, category: DropCategory): Int {
+        if (Color.alpha(rawColor) != 0 && rawColor != 0) {
+            return pastelize(rawColor)
+        }
+        icon?.let { bitmap ->
+            dominantPastelColor(bitmap)?.let { return it }
+        }
+        // Restrained fallbacks from the app palette, not neon category colors.
+        return when (category) {
+            DropCategory.CALL -> 0xFF9DC5AA.toInt()
+            DropCategory.MEDIA -> 0xFF9DC8C2.toInt()
+            DropCategory.DELIVERY -> 0xFF9DC5AA.toInt()
+            DropCategory.OTP -> 0xFFD8B98B.toInt()
+            DropCategory.MESSAGE -> 0xFFAFC8D8.toInt()
+            DropCategory.SYSTEM -> 0xFFA9B2BA.toInt()
+        }
+    }
+
+    /** Desaturate and lift a brand color into the quiet pastel accent range. */
+    private fun pastelize(argb: Int): Int {
+        val hsv = FloatArray(3)
+        Color.colorToHSV(argb, hsv)
+        val pastel = Color.HSVToColor(
+            floatArrayOf(
+                hsv[0],
+                hsv[1].coerceIn(0.18f, 0.52f),
+                hsv[2].coerceIn(0.72f, 0.95f)
+            )
+        )
+        val r = Color.red(pastel)
+        val g = Color.green(pastel)
+        val b = Color.blue(pastel)
+        return Color.rgb(
+            (r + (255 - r) * 0.22f).toInt().coerceIn(0, 255),
+            (g + (255 - g) * 0.22f).toInt().coerceIn(0, 255),
+            (b + (255 - b) * 0.22f).toInt().coerceIn(0, 255)
+        )
+    }
+
+    /** Pull a representative saturated hue from the app icon for a subtle brand tint. */
+    private fun dominantPastelColor(bitmap: Bitmap): Int? {
+        val step = (minOf(bitmap.width, bitmap.height) / 20).coerceAtLeast(1)
+        var red = 0.0
+        var green = 0.0
+        var blue = 0.0
+        var samples = 0
+        var y = 0
+        while (y < bitmap.height) {
+            var x = 0
+            while (x < bitmap.width) {
+                val color = bitmap.getPixel(x, y)
+                if (Color.alpha(color) >= 200) {
+                    val r = Color.red(color)
+                    val g = Color.green(color)
+                    val b = Color.blue(color)
+                    val max = maxOf(r, g, b)
+                    val min = minOf(r, g, b)
+                    val saturation = if (max == 0) 0f else (max - min) / max.toFloat()
+                    // Ignore white glyphs, shadows, and fully neutral icon areas.
+                    if (saturation >= 0.2f && max >= 40 && min <= 235) {
+                        red += r
+                        green += g
+                        blue += b
+                        samples++
+                    }
+                }
+                x += step
+            }
+            y += step
+        }
+        if (samples < 4) return null
+        return pastelize(
+            Color.rgb(
+                (red / samples).toInt().coerceIn(0, 255),
+                (green / samples).toInt().coerceIn(0, 255),
+                (blue / samples).toInt().coerceIn(0, 255)
+            )
         )
     }
 

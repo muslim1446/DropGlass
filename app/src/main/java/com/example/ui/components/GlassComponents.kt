@@ -1,12 +1,5 @@
 package com.example.ui.components
 
-import android.os.Build
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,20 +10,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,60 +29,56 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.ui.glass.LiquidGlassShaders
-import com.example.ui.theme.GlassTextMuted
-import com.example.ui.theme.GlassTextPrimary
-import com.example.ui.theme.GlassTextSecondary
-import com.example.ui.theme.IceCyanPrimary
-import com.example.ui.theme.ObsidianSurface
-import com.example.ui.theme.ObsidianVoid
+import com.example.ui.theme.CanvasBlack
+import com.example.ui.theme.FrostPrimary
+import com.example.ui.theme.SurfaceOne
+import com.example.ui.theme.SurfaceTwo
+import com.example.ui.theme.TextMuted
+import com.example.ui.theme.TextPrimary
+import com.example.ui.theme.TextSecondary
 
+/**
+ * A mostly still backdrop. Motion is reserved for the droplet itself; a moving
+ * full-screen shader behind a translucent panel makes text shimmer and reads
+ * as decoration rather than material.
+ */
 @Composable
 fun LiquidSilkBackdrop(
     accentColor: Color,
     modifier: Modifier = Modifier
 ) {
-    val transition = rememberInfiniteTransition(label = "silkTime")
-    val timeSec by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 62.83f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 36000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "shaderTime"
-    )
-
-    Canvas(modifier = modifier.fillMaxSize()) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val brush = LiquidGlassShaders.createSilkBackdropBrush(
-                widthPx = size.width,
-                heightPx = size.height,
-                timeSeconds = timeSec,
-                accentColor = accentColor
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF0C0E12),
+                        CanvasBlack,
+                        Color(0xFF050607)
+                    )
+                )
             )
-            drawRect(brush = brush)
-        } else {
-            drawRect(color = ObsidianVoid)
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        accentColor.copy(alpha = 0.22f),
-                        Color(0xFF0A1B33).copy(alpha = 0.4f),
+                        accentColor.copy(alpha = 0.09f),
                         Color.Transparent
                     ),
-                    center = Offset(size.width * 0.5f, size.height * 0.14f),
-                    radius = size.width * 0.85f
+                    center = Offset(size.width * 0.5f, size.height * 0.02f),
+                    radius = size.width * 0.9f
                 )
             )
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        Color(0xFF1A4B8C).copy(alpha = 0.26f),
+                        Color.White.copy(alpha = 0.025f),
                         Color.Transparent
                     ),
-                    center = Offset(size.width * 0.85f, size.height * 0.58f),
-                    radius = size.width * 0.7f
+                    center = Offset(size.width * 0.1f, size.height * 0.85f),
+                    radius = size.width * 0.75f
                 )
             )
         }
@@ -102,29 +88,29 @@ fun LiquidSilkBackdrop(
 @Composable
 fun LiquidGlassPanel(
     modifier: Modifier = Modifier,
-    accentGlow: Color = IceCyanPrimary,
+    accentGlow: Color = FrostPrimary,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val shape = RoundedCornerShape(26.dp)
+    val shape = RoundedCornerShape(20.dp)
     val baseModifier = modifier
         .fillMaxWidth()
         .clip(shape)
         .background(
             Brush.verticalGradient(
                 colors = listOf(
-                    Color(0xCC121B2B),
-                    ObsidianSurface.copy(alpha = 0.88f)
+                    SurfaceTwo.copy(alpha = 0.86f),
+                    SurfaceOne.copy(alpha = 0.92f)
                 )
             )
         )
         .border(
             width = 1.dp,
-            brush = Brush.linearGradient(
+            brush = Brush.verticalGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = 0.26f),
-                    accentGlow.copy(alpha = 0.18f),
-                    Color.White.copy(alpha = 0.06f)
+                    Color.White.copy(alpha = 0.10f),
+                    accentGlow.copy(alpha = 0.10f),
+                    Color.White.copy(alpha = 0.04f)
                 )
             ),
             shape = shape
@@ -133,7 +119,7 @@ fun LiquidGlassPanel(
     val interactiveModifier = if (onClick != null) {
         baseModifier.clickable(
             interactionSource = remember { MutableInteractionSource() },
-            indication = ripple(color = accentGlow),
+            indication = ripple(color = Color.White),
             onClick = onClick
         )
     } else {
@@ -141,7 +127,7 @@ fun LiquidGlassPanel(
     }
 
     Column(
-        modifier = interactiveModifier.padding(18.dp),
+        modifier = interactiveModifier.padding(horizontal = 18.dp, vertical = 16.dp),
         content = content
     )
 }
@@ -164,12 +150,12 @@ fun OpticalSliderRow(
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyMedium,
-                color = GlassTextPrimary
+                color = TextPrimary
             )
             Text(
                 text = valueText,
                 style = MaterialTheme.typography.labelMedium,
-                color = IceCyanPrimary
+                color = TextSecondary
             )
         }
         Slider(
@@ -177,9 +163,9 @@ fun OpticalSliderRow(
             onValueChange = onValueChange,
             valueRange = valueRange,
             colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = IceCyanPrimary,
-                inactiveTrackColor = Color.White.copy(alpha = 0.12f)
+                thumbColor = TextPrimary,
+                activeTrackColor = FrostPrimary,
+                inactiveTrackColor = Color.White.copy(alpha = 0.10f)
             )
         )
     }
@@ -192,13 +178,16 @@ fun StatusPillBadge(
     activeColor: Color,
     modifier: Modifier = Modifier
 ) {
-    val pillColor = if (isActive) activeColor else GlassTextMuted
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(pillColor.copy(alpha = 0.14f))
-            .border(0.8.dp, pillColor.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White.copy(alpha = 0.055f))
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(horizontal = 9.dp, vertical = 5.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
@@ -209,12 +198,12 @@ fun StatusPillBadge(
                 modifier = Modifier
                     .size(6.dp)
                     .clip(RoundedCornerShape(3.dp))
-                    .background(pillColor)
+                    .background(if (isActive) activeColor else TextMuted)
             )
             Text(
                 text = text,
                 style = MaterialTheme.typography.labelSmall,
-                color = if (isActive) GlassTextPrimary else GlassTextSecondary
+                color = if (isActive) TextPrimary else TextMuted
             )
         }
     }

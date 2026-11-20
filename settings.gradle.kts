@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "KSSMRecall"
+rootProject.name = "DropGlass"
 
 include(":app")
