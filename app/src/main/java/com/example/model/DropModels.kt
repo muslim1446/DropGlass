@@ -114,7 +114,9 @@ data class DropProgressInfo(
     val milestoneLabels: List<String> = emptyList(),
     val activeMilestoneIndex: Int = -1,
     val segmentColors: List<Int> = emptyList(),
-    val etaLabel: String? = null
+    val etaLabel: String? = null,
+    val detailLabel: String? = null,
+    val showPercentage: Boolean = true
 ) {
     val fraction: Float
         get() = if (max > 0) (progress.toFloat() / max.toFloat()).coerceIn(0f, 1f) else 0f
@@ -138,8 +140,11 @@ data class DropNotification(
     val subText: String? = null,
     val conversationTitle: String? = null,
     val timestampMillis: Long = System.currentTimeMillis(),
+    val usesChronometer: Boolean = false,
+    val chronometerBaseMillis: Long = 0L,
+    val isChronometerCountDown: Boolean = false,
     val category: DropCategory = DropCategory.MESSAGE,
-    val accentColorArgb: Int = 0xFFAFC8D8.toInt(),
+    val accentColorArgb: Int = 0xFFDCE3EC.toInt(),
     val isLiveSystem: Boolean = false,
     val hasReplyAction: Boolean = false,
     val replyLabel: String? = null,

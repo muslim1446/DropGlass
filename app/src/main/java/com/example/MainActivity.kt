@@ -67,6 +67,7 @@ import com.example.ui.components.LiquidSilkBackdrop
 import com.example.ui.screens.BridgeScreen
 import com.example.ui.screens.OpticsScreen
 import com.example.ui.screens.StageScreen
+import com.example.ui.theme.CanvasBlack
 import com.example.ui.theme.DropGlassTheme
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
@@ -132,12 +133,9 @@ private fun DropGlassAppShell(viewModel: MainViewModel) {
         viewModel.clearFeedback()
     }
 
-    // Keep the overlay engine alive in the background so alerts surface over other
-    // apps, not only while DropGlass itself is on screen.
+    // Tear down any manual fallback overlay service when disabled in settings.
     LaunchedEffect(uiState.config.enableSystemOverlay, uiState.isOverlayPermissionGranted) {
-        if (uiState.config.enableSystemOverlay && uiState.isOverlayPermissionGranted) {
-            LiquidOverlayService.ensureRunning(context)
-        } else {
+        if (!uiState.config.enableSystemOverlay || !uiState.isOverlayPermissionGranted) {
             LiquidOverlayService.stop(context)
         }
     }

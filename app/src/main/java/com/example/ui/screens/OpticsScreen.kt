@@ -168,7 +168,7 @@ fun OpticsScreen(
                                     Color.White.copy(alpha = 0.12f)
                                 },
                                 contentColor = if (config.preset == CameraPreset.OPPO_CPH2773) {
-                                    Color(0xFF041928)
+                                    CanvasBlack
                                 } else {
                                     TextPrimary
                                 }

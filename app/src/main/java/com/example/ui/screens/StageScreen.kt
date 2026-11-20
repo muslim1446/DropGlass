@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Call
@@ -30,7 +32,6 @@ import androidx.compose.material.icons.rounded.LocalShipping
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Sms
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -46,6 +47,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -69,6 +72,12 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 
+private enum class StageBackdropMode(val label: String) {
+    LIVE_TINT("Live Tint"),
+    BRIGHT_GLASS("Bright Card"),
+    OBSIDIAN("Obsidian")
+}
+
 @Composable
 fun StageScreen(
     uiState: StudioUiState,
@@ -90,6 +99,7 @@ fun StageScreen(
         uiState.previewDrop?.let { Color(it.accentColorArgb) } ?: FrostPrimary
     }
     var selectedRealAlertType by remember { mutableStateOf(RealOsAlertType.MESSAGE) }
+    var backdropMode by remember { mutableStateOf(StageBackdropMode.LIVE_TINT) }
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -100,18 +110,23 @@ fun StageScreen(
                 .testTag("stage_lazy_list"),
             contentPadding = PaddingValues(
                 top = 0.dp,
-                bottom = bottomContentPadding.calculateBottomPadding() + 20.dp
+                bottom = bottomContentPadding.calculateBottomPadding() + 24.dp
             ),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // The droplet lives at the camera cutout, pinned to y = 0.
+            // Camera stage at y = 0 with switchable background so glass transparency & live color are clearly visible
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 272.dp),
+                        .heightIn(min = 276.dp),
                     contentAlignment = Alignment.TopCenter
                 ) {
+                    StageOpticalCanvas(
+                        mode = backdropMode,
+                        accentColor = activeAccent,
+                        modifier = Modifier.matchParentSize()
+                    )
                     WaterDropOverlayHost(
                         notification = uiState.previewDrop,
                         config = uiState.config,
@@ -128,29 +143,40 @@ fun StageScreen(
                 }
             }
 
-            // Title + live bridge status
+            // Header + live status + backdrop toggle
             item {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = TextPrimary,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.weight(1f)
-                        )
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(9.dp)
+                                    .clip(CircleShape)
+                                    .background(activeAccent)
+                            )
+                            Text(
+                                text = stringResource(R.string.app_name),
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = TextPrimary
+                            )
+                        }
                         val systemReady = uiState.isNotificationAccessGranted &&
                             uiState.isOverlayPermissionGranted
                         StatusPillBadge(
-                            text = if (systemReady) "Connected" else "Set up",
+                            text = if (systemReady) "Bridge Active" else "Setup Needed",
                             isActive = systemReady,
                             activeColor = AccentSage,
                             modifier = Modifier
@@ -159,15 +185,27 @@ fun StageScreen(
                         )
                     }
                     Text(
-                        text = stringResource(R.string.hero_subtitle),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = FrostPrimary
-                    )
-                    Text(
                         text = stringResource(R.string.stage_hint),
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary
                     )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        StageBackdropMode.entries.forEach { mode ->
+                            StageSelectorChip(
+                                label = mode.label,
+                                selected = backdropMode == mode,
+                                accent = activeAccent,
+                                onClick = { backdropMode = mode },
+                                testTag = "backdrop_chip_${mode.name.lowercase()}"
+                            )
+                        }
+                    }
                 }
             }
 
@@ -183,7 +221,7 @@ fun StageScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Preview size",
+                            text = "Drop Stage",
                             style = MaterialTheme.typography.titleMedium,
                             color = TextPrimary
                         )
@@ -227,13 +265,13 @@ fun StageScreen(
                     accentGlow = activeAccent
                 ) {
                     Text(
-                        text = "Preview an alert",
+                        text = "Interactive Previews",
                         style = MaterialTheme.typography.titleMedium,
                         color = TextPrimary
                     )
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = "Sample the layouts used for messages, deliveries, media, codes and calls.",
+                        text = "Tap any category to watch the glass tint and layout adapt live.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextMuted
                     )
@@ -244,16 +282,16 @@ fun StageScreen(
                     ) {
                         ScenarioTile(
                             title = "Message",
-                            subtitle = "Reply & read",
+                            subtitle = "Inline reply",
                             icon = Icons.Rounded.Sms,
-                            accent = FrostPrimary,
+                            accent = Color(0xFF3AD17A),
                             onClick = { onTriggerPreset(0) },
                             modifier = Modifier.weight(1f),
                             testTag = "scenario_message"
                         )
                         ScenarioTile(
                             title = "Delivery",
-                            subtitle = "Milestones",
+                            subtitle = "Live milestones",
                             icon = Icons.Rounded.LocalShipping,
                             accent = AccentSage,
                             onClick = { onTriggerPreset(1) },
@@ -268,7 +306,7 @@ fun StageScreen(
                     ) {
                         ScenarioTile(
                             title = "Media",
-                            subtitle = "Playback",
+                            subtitle = "Artwork tint",
                             icon = Icons.Rounded.GraphicEq,
                             accent = AccentTeal,
                             onClick = { onTriggerPreset(2) },
@@ -276,8 +314,8 @@ fun StageScreen(
                             testTag = "scenario_audio"
                         )
                         ScenarioTile(
-                            title = "2FA",
-                            subtitle = "Copy code",
+                            title = "2FA Code",
+                            subtitle = "One-tap copy",
                             icon = Icons.Rounded.Key,
                             accent = AccentAmber,
                             onClick = { onTriggerPreset(3) },
@@ -287,10 +325,10 @@ fun StageScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     ScenarioTile(
-                        title = "Incoming call",
-                        subtitle = "Answer or decline",
+                        title = "Incoming Call",
+                        subtitle = "Live timer & actions",
                         icon = Icons.Rounded.Call,
-                        accent = AccentSage,
+                        accent = Color(0xFF5CE19A),
                         onClick = { onTriggerPreset(4) },
                         modifier = Modifier.fillMaxWidth(),
                         testTag = "scenario_call"
@@ -302,16 +340,16 @@ fun StageScreen(
             item {
                 LiquidGlassPanel(
                     modifier = Modifier.padding(horizontal = 20.dp),
-                    accentGlow = FrostPrimary
+                    accentGlow = activeAccent
                 ) {
                     Text(
-                        text = "Send a real alert",
+                        text = "Real System Test",
                         style = MaterialTheme.typography.titleMedium,
                         color = TextPrimary
                     )
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = "Posts a system notification with working actions, so you can test the complete flow.",
+                        text = "Dispatches an actual Android notification to verify background interception & replies.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextMuted
                     )
@@ -326,7 +364,7 @@ fun StageScreen(
                             StageSelectorChip(
                                 label = alertType.label,
                                 selected = selectedRealAlertType == alertType,
-                                accent = FrostPrimary,
+                                accent = activeAccent,
                                 onClick = { selectedRealAlertType = alertType },
                                 testTag = "real_type_${alertType.name.lowercase()}"
                             )
@@ -376,13 +414,87 @@ fun StageScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Looks",
+                                text = "Optics",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = TextSecondary
                             )
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StageOpticalCanvas(
+    mode: StageBackdropMode,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        when (mode) {
+            StageBackdropMode.LIVE_TINT -> {
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = 0.34f),
+                            accentColor.copy(alpha = 0.14f),
+                            CanvasBlack
+                        )
+                    )
+                )
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = 0.42f),
+                            Color.Transparent
+                        ),
+                        center = Offset(size.width * 0.25f, size.height * 0.42f),
+                        radius = size.width * 0.48f
+                    )
+                )
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.16f),
+                            Color.Transparent
+                        ),
+                        center = Offset(size.width * 0.78f, size.height * 0.35f),
+                        radius = size.width * 0.42f
+                    )
+                )
+            }
+            StageBackdropMode.BRIGHT_GLASS -> {
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFFDDE3EC),
+                            Color(0xFFB7C3D6),
+                            CanvasBlack
+                        )
+                    )
+                )
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = 0.45f),
+                            Color.Transparent
+                        ),
+                        center = Offset(size.width * 0.5f, size.height * 0.4f),
+                        radius = size.width * 0.52f
+                    )
+                )
+            }
+            StageBackdropMode.OBSIDIAN -> {
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF0A0C10),
+                            CanvasBlack
+                        )
+                    )
+                )
             }
         }
     }
@@ -400,10 +512,10 @@ private fun StageSelectorChip(
         modifier = Modifier
             .height(40.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) accent.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.035f))
+            .background(if (selected) accent.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.04f))
             .border(
                 width = 1.dp,
-                color = if (selected) accent.copy(alpha = 0.50f) else Color.White.copy(alpha = 0.08f),
+                color = if (selected) accent.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.08f),
                 shape = RoundedCornerShape(10.dp)
             )
             .clickable(
@@ -435,10 +547,10 @@ private fun ScenarioTile(
 ) {
     Row(
         modifier = modifier
-            .height(56.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .height(58.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(Color.White.copy(alpha = 0.035f))
-            .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(12.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(color = accent),
@@ -451,16 +563,16 @@ private fun ScenarioTile(
     ) {
         Box(
             modifier = Modifier
-                .size(30.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(accent.copy(alpha = 0.14f)),
+                .size(32.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(accent.copy(alpha = 0.16f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = accent,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(17.dp)
             )
         }
         Column(modifier = Modifier.weight(1f)) {

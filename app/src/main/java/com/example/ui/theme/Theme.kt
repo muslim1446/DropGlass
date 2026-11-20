@@ -13,15 +13,15 @@ import androidx.compose.ui.unit.dp
 
 private val DropGlassColorScheme = darkColorScheme(
     primary = FrostPrimary,
-    onPrimary = Color(0xFF10191F),
-    primaryContainer = Color(0xFF1B2A33),
+    onPrimary = Color(0xFF0A0C10),
+    primaryContainer = Color(0xFF1D2129),
     onPrimaryContainer = FrostBright,
     secondary = AccentTeal,
-    onSecondary = Color(0xFF0D1C1A),
-    secondaryContainer = Color(0xFF162825),
-    onSecondaryContainer = Color(0xFFD6F2EE),
+    onSecondary = Color(0xFF071714),
+    secondaryContainer = Color(0xFF132623),
+    onSecondaryContainer = Color(0xFFD9F7F2),
     tertiary = AccentLilac,
-    onTertiary = Color(0xFF171426),
+    onTertiary = Color(0xFF161326),
     background = CanvasBlack,
     onBackground = TextPrimary,
     surface = SurfaceOne,
@@ -29,9 +29,9 @@ private val DropGlassColorScheme = darkColorScheme(
     surfaceVariant = SurfaceTwo,
     onSurfaceVariant = TextSecondary,
     outline = Hairline,
-    outlineVariant = Color(0xFF1D2127),
+    outlineVariant = Color(0xFF1C2028),
     error = AccentRose,
-    onError = Color(0xFF2A0F12)
+    onError = Color(0xFF2B0E13)
 )
 
 val DropGlassShapes = Shapes(

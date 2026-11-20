@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -81,6 +82,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -138,6 +140,7 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import kotlinx.coroutines.delay
 import java.util.Date
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
@@ -158,9 +161,12 @@ fun WaterDropOverlayHost(
     onMediaControl: (DropNotification, MediaCommandAction) -> Unit = { _, _ -> },
     onCopyOtp: (DropNotification, String) -> Unit = { _, _ -> },
     onSnooze: (DropNotification) -> Unit = {},
+    onAutoHide: ((DropNotification?) -> Unit)? = null,
     onDismiss: (DropNotification?) -> Unit = {}
 ) {
-    var currentStage by remember { mutableStateOf(DropStage.CAMERA_SEED) }
+    var currentStage by remember {
+        mutableStateOf(if (showCameraRingGuide) DropStage.CAMERA_SEED else DropStage.SMALL_DROP)
+    }
     var isReplying by remember { mutableStateOf(false) }
     var replyText by remember { mutableStateOf("") }
     var replyError by remember { mutableStateOf<String?>(null) }
@@ -187,7 +193,6 @@ fun WaterDropOverlayHost(
         onDispose { onFocusRequested(false) }
     }
 
-    // Reset reply state only when notification.id changes (not on live progress updates)
     LaunchedEffect(notification?.id) {
         isReplying = false
         replyText = ""
@@ -197,9 +202,9 @@ fun WaterDropOverlayHost(
         fullContentHeightPx = 0
     }
 
-    // Camera seed -> drop -> pill -> full glass. Entry runs once per drop so
-    // live progress updates do not replay the animation.
-    LaunchedEffect(notification?.id, forcedStage, config.viscositySpeed) {
+    // Smooth entry choreography from camera lens -> droplet -> pill -> full glass.
+    // In system overlay mode, skip silent CAMERA_SEED wait so the meniscus renders immediately.
+    LaunchedEffect(notification?.id, forcedStage, config.viscositySpeed, showCameraRingGuide) {
         if (notification == null) {
             currentStage = DropStage.CAMERA_SEED
             return@LaunchedEffect
@@ -211,17 +216,18 @@ fun WaterDropOverlayHost(
         }
 
         val speedFactor = 1f / config.viscositySpeed.coerceIn(0.4f, 2.0f)
-        currentStage = DropStage.CAMERA_SEED
-        delay((65f * speedFactor).toLong())
+        if (showCameraRingGuide) {
+            currentStage = DropStage.CAMERA_SEED
+            delay((55f * speedFactor).toLong())
+        }
         currentStage = DropStage.SMALL_DROP
-        delay((185f * speedFactor).toLong())
+        delay((155f * speedFactor).toLong())
         currentStage = DropStage.MEDIUM_PILL
-        delay((340f * speedFactor).toLong())
+        delay((290f * speedFactor).toLong())
         currentStage = DropStage.BIGGEST_GLASS
     }
 
-    // Dwell timer. It restarts when the notification is updated in place, so a
-    // live download or delivery stays visible while its numbers are moving.
+    // Dwell timer resets cleanly while progress updates or user interacts / types reply.
     LaunchedEffect(
         notification?.id,
         notification?.updateCount,
@@ -235,10 +241,14 @@ fun WaterDropOverlayHost(
         if (notification == null || forcedStage != null) return@LaunchedEffect
 
         val speedFactor = 1f / config.viscositySpeed.coerceIn(0.4f, 2.0f)
-        delay((620f * speedFactor).toLong())
+        delay((550f * speedFactor).toLong())
 
         val baseMs = (config.autoDismissSeconds * 1000f).toLong().coerceAtLeast(2500L)
-        val dismissMs = if (notification.progressInfo != null) maxOf(baseMs, 9000L) else baseMs
+        val dismissMs = if (notification.progressInfo != null || notification.usesChronometer) {
+            maxOf(baseMs, 10_000L)
+        } else {
+            baseMs
+        }
         var elapsed = 0L
         val step = 120L
         while (elapsed < dismissMs) {
@@ -249,22 +259,33 @@ fun WaterDropOverlayHost(
         }
 
         currentStage = DropStage.MEDIUM_PILL
-        delay((140f * speedFactor).toLong())
+        delay((130f * speedFactor).toLong())
         currentStage = DropStage.SMALL_DROP
-        delay((125f * speedFactor).toLong())
+        delay((115f * speedFactor).toLong())
         currentStage = DropStage.CAMERA_SEED
-        delay((90f * speedFactor).toLong())
-        onDismiss(notification)
+        delay((80f * speedFactor).toLong())
+        (onAutoHide ?: onDismiss)(notification)
+    }
+
+    // Live 1-second ticker for notifications with chronometer / countdown / seconds
+    var nowMillis by remember(notification?.id) { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(notification?.id, notification?.usesChronometer, notification?.chronometerBaseMillis) {
+        if (notification?.usesChronometer == true) {
+            while (true) {
+                nowMillis = System.currentTimeMillis()
+                delay(1000L)
+            }
+        }
     }
 
     val activeStage = forcedStage ?: currentStage
     val springSpecDp = spring<Dp>(
-        dampingRatio = 0.78f,
-        stiffness = 360f * config.viscositySpeed.coerceIn(0.5f, 1.8f)
+        dampingRatio = 0.80f,
+        stiffness = 380f * config.viscositySpeed.coerceIn(0.5f, 1.8f)
     )
     val springSpecFloat = spring<Float>(
-        dampingRatio = 0.82f,
-        stiffness = 420f * config.viscositySpeed.coerceIn(0.5f, 1.8f)
+        dampingRatio = 0.84f,
+        stiffness = 440f * config.viscositySpeed.coerceIn(0.5f, 1.8f)
     )
 
     BoxWithConstraints(
@@ -273,29 +294,30 @@ fun WaterDropOverlayHost(
     ) {
         val density = LocalDensity.current
         val availableWidthDp = maxWidth
-        val maxCardWidth = (availableWidthDp - 24.dp).coerceIn(268.dp, 380.dp)
+        val maxCardWidth = (availableWidthDp - 24.dp).coerceIn(272.dp, 384.dp)
+        val pillTargetWidth = (maxCardWidth * 0.74f).coerceIn(228.dp, 286.dp)
         val fullContentHeightDp = with(density) { fullContentHeightPx.toDp() }
 
         val targetDropWidth = when (activeStage) {
             DropStage.CAMERA_SEED -> (effectiveCamRadiusDp * 2f + 4f).dp
             DropStage.SMALL_DROP -> 52.dp
-            DropStage.MEDIUM_PILL -> (maxCardWidth * 0.72f).coerceIn(220.dp, 276.dp)
+            DropStage.MEDIUM_PILL -> pillTargetWidth
             DropStage.BIGGEST_GLASS -> maxCardWidth
         }
         val targetDropHeight = when (activeStage) {
             DropStage.CAMERA_SEED -> (effectiveCamRadiusDp * 2f + 4f).dp
             DropStage.SMALL_DROP -> 52.dp
-            DropStage.MEDIUM_PILL -> 56.dp
+            DropStage.MEDIUM_PILL -> 58.dp
             DropStage.BIGGEST_GLASS -> if (fullContentHeightPx > 0) {
-                fullContentHeightDp.coerceAtLeast(150.dp)
+                fullContentHeightDp.coerceAtLeast(132.dp)
             } else {
-                220.dp
+                172.dp
             }
         }
         val targetCorner = when (activeStage) {
             DropStage.CAMERA_SEED -> 40.dp
             DropStage.SMALL_DROP -> 26.dp
-            DropStage.MEDIUM_PILL -> 28.dp
+            DropStage.MEDIUM_PILL -> 29.dp
             DropStage.BIGGEST_GLASS -> 24.dp
         }
         val camBottomDp = effectiveCamTopMarginDp + (effectiveCamRadiusDp * 2f)
@@ -305,11 +327,8 @@ fun WaterDropOverlayHost(
             DropStage.MEDIUM_PILL -> camBottomDp + config.dropGapDp
             DropStage.BIGGEST_GLASS -> camBottomDp + config.dropGapDp + 2f
         }
-        // Stock heads-up banners own the very top of the screen and are drawn
-        // above overlay windows. Keep the drop below that zone so the two never
-        // stack on top of each other.
         val bannerClearanceDp = if (avoidSystemBanners) {
-            detectedCutout.statusBarHeightDp.coerceIn(20f, 48f) + 104f
+            detectedCutout.statusBarHeightDp.coerceIn(20f, 48f) + 92f
         } else {
             0f
         }
@@ -319,9 +338,9 @@ fun WaterDropOverlayHost(
             maxOf(rawDropTopDp, bannerClearanceDp)
         }
         val targetNeckBlend = when (activeStage) {
-            DropStage.CAMERA_SEED -> 26f
-            DropStage.SMALL_DROP -> 28f
-            DropStage.MEDIUM_PILL -> 12f
+            DropStage.CAMERA_SEED -> 24f
+            DropStage.SMALL_DROP -> 26f
+            DropStage.MEDIUM_PILL -> 10f
             DropStage.BIGGEST_GLASS -> 0f
         }
 
@@ -334,22 +353,25 @@ fun WaterDropOverlayHost(
             label = "dropTop"
         )
         val animNeckBlend by animateFloatAsState(targetNeckBlend, springSpecFloat, label = "neckBlend")
-        val contentAlpha by animateFloatAsState(
-            targetValue = if (notification == null || activeStage == DropStage.CAMERA_SEED) 0f else 1f,
-            animationSpec = tween(180, easing = FastOutSlowInEasing),
-            label = "contentAlpha"
-        )
+
+        // Never render text inside a squeezed half-expanded container; fade in cleanly once width clears threshold
+        val compactContentAlpha = when (activeStage) {
+            DropStage.CAMERA_SEED -> 0f
+            DropStage.SMALL_DROP -> 1f
+            DropStage.MEDIUM_PILL -> ((animWidth.value - 138f) / 72f).coerceIn(0f, 1f)
+            DropStage.BIGGEST_GLASS -> 0f
+        }
         val fullContentAlpha by animateFloatAsState(
-            targetValue = if (activeStage == DropStage.BIGGEST_GLASS) 1f else 0f,
-            animationSpec = tween(durationMillis = 200, delayMillis = 90),
+            targetValue = if (activeStage == DropStage.BIGGEST_GLASS && animWidth >= maxCardWidth * 0.82f) 1f else 0f,
+            animationSpec = tween(durationMillis = 170, easing = FastOutSlowInEasing),
             label = "fullContentAlpha"
         )
 
         val pulseScale = remember { Animatable(1f) }
         LaunchedEffect(notification?.id) {
             if (notification != null) {
-                pulseScale.snapTo(0.88f)
-                pulseScale.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 420f))
+                pulseScale.snapTo(0.90f)
+                pulseScale.animateTo(1f, spring(dampingRatio = 0.58f, stiffness = 420f))
             }
         }
 
@@ -357,7 +379,7 @@ fun WaterDropOverlayHost(
             if (notification != null) Color(notification.accentColorArgb) else FrostPrimary
         }
 
-        val measuredStageHeight = if (activeStage == DropStage.BIGGEST_GLASS) {
+        val measuredStageHeight = if (activeStage == DropStage.BIGGEST_GLASS && fullContentHeightPx > 0) {
             maxOf(animHeight, fullContentHeightDp)
         } else {
             animHeight
@@ -392,14 +414,18 @@ fun WaterDropOverlayHost(
                 },
             contentAlignment = Alignment.TopCenter
         ) {
-            // Layer 1: optical glass + metaball meniscus
+            // Layer 1: Optical liquid glass SDF shader
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val camCenterX = size.width / 2f + effectiveCamCenterXdp.dp.toPx()
                 val camRadiusPx = effectiveCamRadiusDp.dp.toPx()
                 val camCenterY = effectiveCamTopMarginDp.dp.toPx() + camRadiusPx
 
                 val dropW = animWidth.toPx() * pulseScale.value
-                val dropH = animHeight.toPx() * pulseScale.value
+                val dropH = (if (activeStage == DropStage.BIGGEST_GLASS && fullContentHeightPx > 0) {
+                    maxOf(animHeight.toPx(), fullContentHeightPx.toFloat())
+                } else {
+                    animHeight.toPx()
+                }) * pulseScale.value
                 val dropCenterX = camCenterX
                 val dropTopPx = animTop.toPx()
                 val dropCenterY = dropTopPx + dropH / 2f
@@ -432,7 +458,7 @@ fun WaterDropOverlayHost(
                             dropTopLeft = Offset(dropCenterX - dropW / 2f, dropTopPx),
                             dropSize = Size(dropW, dropH),
                             cornerRadius = cornerPx,
-                            neckStrength = (animNeckBlend / 28f).coerceIn(0f, 1f),
+                            neckStrength = (animNeckBlend / 26f).coerceIn(0f, 1f),
                             accentColor = accentColor,
                             style = config.glassStyle,
                             specular = config.specularRimIntensity
@@ -449,9 +475,9 @@ fun WaterDropOverlayHost(
                     drawCircle(
                         brush = Brush.linearGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.42f),
-                                accentColor.copy(alpha = 0.30f),
-                                Color.White.copy(alpha = 0.10f)
+                                Color.White.copy(alpha = 0.45f),
+                                accentColor.copy(alpha = 0.40f),
+                                Color.White.copy(alpha = 0.12f)
                             )
                         ),
                         radius = camRadiusPx + 1.5.dp.toPx(),
@@ -461,9 +487,9 @@ fun WaterDropOverlayHost(
                 }
             }
 
-            val camOffsetX = effectiveCamCenterXdp.dp.roundToPx()
+            val camOffsetX = with(density) { effectiveCamCenterXdp.dp.roundToPx() }
 
-            // Layer 2a: compact stages
+            // Layer 2a: Compact morph stages (Small orb / Medium pill)
             if (notification != null &&
                 (activeStage == DropStage.SMALL_DROP || activeStage == DropStage.MEDIUM_PILL)
             ) {
@@ -471,7 +497,6 @@ fun WaterDropOverlayHost(
                     modifier = Modifier
                         .offset { IntOffset(x = camOffsetX, y = animTop.roundToPx()) }
                         .size(animWidth, animHeight)
-                        .alpha(contentAlpha)
                         .clip(RoundedCornerShape(animCorner))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
@@ -484,7 +509,7 @@ fun WaterDropOverlayHost(
                 ) {
                     AnimatedContent(
                         targetState = activeStage,
-                        transitionSpec = { fadeIn(tween(140)) togetherWith fadeOut(tween(100)) },
+                        transitionSpec = { fadeIn(tween(120)) togetherWith fadeOut(tween(90)) },
                         label = "compactDropContent"
                     ) { stage ->
                         when (stage) {
@@ -494,7 +519,10 @@ fun WaterDropOverlayHost(
                             )
                             DropStage.MEDIUM_PILL -> MediumPillContent(
                                 notification = notification,
-                                accentColor = accentColor
+                                accentColor = accentColor,
+                                targetWidth = pillTargetWidth,
+                                contentAlpha = compactContentAlpha,
+                                nowMillis = nowMillis
                             )
                             else -> Unit
                         }
@@ -502,30 +530,32 @@ fun WaterDropOverlayHost(
                 }
             }
 
-            // Layer 2b: full glass. The content is always laid out at its final
-            // width and measured, so the glass grows to the content instead of
-            // forcing text into a guessed fixed height.
+            // Layer 2b: Expanded liquid glass card laid out at final card width so text never wraps/scrambles
             if (notification != null && activeStage == DropStage.BIGGEST_GLASS) {
-                Column(
+                Box(
                     modifier = Modifier
                         .offset { IntOffset(x = camOffsetX, y = animTop.roundToPx()) }
                         .width(maxCardWidth)
                         .alpha(fullContentAlpha)
                         .onSizeChanged { fullContentHeightPx = it.height }
                         .clip(RoundedCornerShape(animCorner))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = ripple(color = accentColor)
-                        ) {
+                        .then(
                             if (!isReplying) {
-                                if (notification.isLiveSystem) {
-                                    onOpenNotification(notification)
-                                } else {
-                                    currentStage = DropStage.MEDIUM_PILL
+                                Modifier.clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = ripple(color = accentColor)
+                                ) {
+                                    if (notification.isLiveSystem) {
+                                        onOpenNotification(notification)
+                                    } else {
+                                        currentStage = DropStage.MEDIUM_PILL
+                                    }
                                 }
+                            } else {
+                                Modifier
                             }
-                        }
-                        .testTag("liquid_drop_container"),
+                        )
+                        .testTag("liquid_drop_container")
                 ) {
                     BiggestGlassContent(
                         notification = notification,
@@ -535,7 +565,11 @@ fun WaterDropOverlayHost(
                         replyText = replyText,
                         replyError = replyError,
                         copiedOtpFeedback = copiedOtpFeedback,
-                        onReplyTextChange = { replyText = it },
+                        nowMillis = nowMillis,
+                        onReplyTextChange = {
+                            replyText = it
+                            if (replyError != null) replyError = null
+                        },
                         onToggleReply = {
                             isReplying = !isReplying
                             isInteracting = isReplying
@@ -551,7 +585,7 @@ fun WaterDropOverlayHost(
                                     replyText = ""
                                     replyError = null
                                 } else {
-                                    replyError = "This app doesn't accept inline replies"
+                                    replyError = "Couldn't deliver reply to ${notification.appName}"
                                 }
                             }
                         },
@@ -583,6 +617,31 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFallbackWaterDr
     style: GlassStyle,
     specular: Float
 ) {
+    val bodyAlpha = when (style) {
+        GlassStyle.CRYSTAL_CLEAR -> 0.52f
+        GlassStyle.OBSIDIAN_SMOKE -> 0.78f
+        GlassStyle.IRIDESCENT_PRISM -> 0.56f
+        GlassStyle.COLOROS_ADAPTIVE -> 0.58f
+    }
+    val tintMix = when (style) {
+        GlassStyle.COLOROS_ADAPTIVE -> 0.34f
+        GlassStyle.CRYSTAL_CLEAR -> 0.14f
+        GlassStyle.IRIDESCENT_PRISM -> 0.22f
+        GlassStyle.OBSIDIAN_SMOKE -> 0.08f
+    }
+    val topGlass = Color(
+        red = (0.09f + accentColor.red * tintMix).coerceIn(0f, 1f),
+        green = (0.10f + accentColor.green * tintMix).coerceIn(0f, 1f),
+        blue = (0.13f + accentColor.blue * tintMix).coerceIn(0f, 1f),
+        alpha = bodyAlpha
+    )
+    val bottomGlass = Color(
+        red = (0.04f + accentColor.red * (tintMix * 0.6f)).coerceIn(0f, 1f),
+        green = (0.05f + accentColor.green * (tintMix * 0.6f)).coerceIn(0f, 1f),
+        blue = (0.07f + accentColor.blue * (tintMix * 0.6f)).coerceIn(0f, 1f),
+        alpha = (bodyAlpha + 0.08f).coerceAtMost(0.90f)
+    )
+
     if (neckStrength > 0.05f) {
         val neckHalfTop = camRadius * (0.65f + 0.25f * neckStrength)
         val neckHalfBot = (dropSize.width * 0.28f).coerceAtMost(camRadius * 1.35f)
@@ -611,28 +670,16 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFallbackWaterDr
         drawPath(
             path = path,
             brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xF20B0D11),
-                    Color(0xE60E1115)
-                ),
+                colors = listOf(topGlass, bottomGlass),
                 startY = camCenter.y,
                 endY = dropTopY + 8f
             )
         )
     }
 
-    val bodyAlpha = when (style) {
-        GlassStyle.CRYSTAL_CLEAR -> 0.88f
-        GlassStyle.OBSIDIAN_SMOKE -> 0.94f
-        GlassStyle.IRIDESCENT_PRISM -> 0.90f
-        GlassStyle.COLOROS_ADAPTIVE -> 0.90f
-    }
     drawRoundRect(
         brush = Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFF14171C).copy(alpha = bodyAlpha),
-                Color(0xFF0A0C0F).copy(alpha = bodyAlpha)
-            ),
+            colors = listOf(topGlass, bottomGlass),
             startY = dropTopLeft.y,
             endY = dropTopLeft.y + dropSize.height
         ),
@@ -643,9 +690,9 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFallbackWaterDr
     drawRoundRect(
         brush = Brush.linearGradient(
             colors = listOf(
-                Color.White.copy(alpha = 0.48f * specular),
-                accentColor.copy(alpha = 0.30f * specular),
-                Color.White.copy(alpha = 0.10f * specular)
+                Color.White.copy(alpha = 0.55f * specular),
+                accentColor.copy(alpha = 0.42f * specular),
+                Color.White.copy(alpha = 0.14f * specular)
             ),
             start = dropTopLeft,
             end = Offset(dropTopLeft.x + dropSize.width, dropTopLeft.y + dropSize.height)
@@ -677,11 +724,23 @@ private fun SmallDropContent(
 @Composable
 private fun MediumPillContent(
     notification: DropNotification,
-    accentColor: Color
+    accentColor: Color,
+    targetWidth: Dp,
+    contentAlpha: Float,
+    nowMillis: Long
 ) {
+    val liveSecondsText = remember(notification.usesChronometer, notification.chronometerBaseMillis, notification.isChronometerCountDown, nowMillis) {
+        if (notification.usesChronometer && notification.chronometerBaseMillis > 0L) {
+            formatChronometer(notification.chronometerBaseMillis, notification.isChronometerCountDown, nowMillis)
+        } else {
+            null
+        }
+    }
+
     Row(
         modifier = Modifier
-            .fillMaxSize()
+            .requiredWidth(targetWidth)
+            .height(58.dp)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -691,7 +750,12 @@ private fun MediumPillContent(
             orbSize = 32.dp
         )
         Spacer(modifier = Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .alpha(contentAlpha),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
             Text(
                 text = notification.title,
                 style = MaterialTheme.typography.labelLarge,
@@ -701,31 +765,7 @@ private fun MediumPillContent(
             )
             if (notification.progressInfo != null) {
                 val info = notification.progressInfo
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color.White.copy(alpha = 0.10f))
-                ) {
-                    if (info.indeterminate) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(0.35f)
-                                .height(3.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(accentColor.copy(alpha = 0.8f))
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(info.fraction)
-                                .height(3.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                                .background(accentColor)
-                        )
-                    }
-                }
+                CompactProgressTrack(info = info, accentColor = accentColor)
             } else {
                 Text(
                     text = notification.text,
@@ -737,24 +777,85 @@ private fun MediumPillContent(
             }
         }
         Spacer(modifier = Modifier.width(8.dp))
-        when {
-            notification.progressInfo?.etaLabel != null -> Text(
-                text = notification.progressInfo.etaLabel!!,
-                style = MaterialTheme.typography.labelSmall,
-                color = TextMuted,
-                maxLines = 1
+        val trailingBadge = when {
+            liveSecondsText != null -> liveSecondsText
+            notification.progressInfo?.etaLabel != null -> notification.progressInfo.etaLabel
+            notification.progressInfo?.showPercentage == true && !notification.progressInfo.indeterminate ->
+                "${(notification.progressInfo.fraction * 100f).roundToInt()}%"
+            notification.detectedOtpCode != null -> notification.detectedOtpCode
+            else -> null
+        }
+        if (trailingBadge != null) {
+            Text(
+                text = trailingBadge,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontFeatureSettings = "tnum",
+                    letterSpacing = if (notification.detectedOtpCode != null) 0.8.sp else 0.sp
+                ),
+                color = if (notification.detectedOtpCode != null || liveSecondsText != null) accentColor else TextPrimary,
+                maxLines = 1,
+                modifier = Modifier.alpha(contentAlpha)
             )
-            notification.detectedOtpCode != null -> Text(
-                text = notification.detectedOtpCode!!,
-                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
-                color = accentColor
-            )
-            else -> Box(
+        } else {
+            Box(
                 modifier = Modifier
+                    .alpha(contentAlpha)
                     .size(6.dp)
                     .clip(CircleShape)
                     .background(accentColor)
             )
+        }
+    }
+}
+
+@Composable
+private fun CompactProgressTrack(
+    info: DropProgressInfo,
+    accentColor: Color
+) {
+    var phase by remember { mutableFloatStateOf(0f) }
+    if (info.indeterminate) {
+        val transition = rememberInfiniteTransition(label = "compactIndeterminate")
+        val anim by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing), RepeatMode.Restart),
+            label = "compactIndeterminatePhase"
+        )
+        phase = anim
+    }
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(3.dp)
+    ) {
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.14f),
+            size = size,
+            cornerRadius = CornerRadius(size.height / 2f, size.height / 2f)
+        )
+        if (info.indeterminate) {
+            val w = size.width * 0.34f
+            val x = (size.width + w) * phase - w
+            val start = x.coerceIn(0f, size.width)
+            val end = (x + w).coerceIn(0f, size.width)
+            if (end > start) {
+                drawRoundRect(
+                    color = accentColor,
+                    topLeft = Offset(start, 0f),
+                    size = Size(end - start, size.height),
+                    cornerRadius = CornerRadius(size.height / 2f, size.height / 2f)
+                )
+            }
+        } else {
+            val fill = size.width * info.fraction.coerceIn(0f, 1f)
+            if (fill > 0f) {
+                drawRoundRect(
+                    color = accentColor,
+                    size = Size(fill.coerceAtLeast(size.height / 2f), size.height),
+                    cornerRadius = CornerRadius(size.height / 2f, size.height / 2f)
+                )
+            }
         }
     }
 }
@@ -768,6 +869,7 @@ private fun BiggestGlassContent(
     replyText: String,
     replyError: String?,
     copiedOtpFeedback: Boolean,
+    nowMillis: Long,
     onReplyTextChange: (String) -> Unit,
     onToggleReply: () -> Unit,
     onSendReply: (String) -> Unit,
@@ -783,6 +885,18 @@ private fun BiggestGlassContent(
     val timeString = remember(notification.timestampMillis) {
         DateFormat.getTimeFormat(context).format(Date(notification.timestampMillis))
     }
+    val liveChronoText = remember(
+        notification.usesChronometer,
+        notification.chronometerBaseMillis,
+        notification.isChronometerCountDown,
+        nowMillis
+    ) {
+        if (notification.usesChronometer && notification.chronometerBaseMillis > 0L) {
+            formatChronometer(notification.chronometerBaseMillis, notification.isChronometerCountDown, nowMillis)
+        } else {
+            null
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -790,7 +904,7 @@ private fun BiggestGlassContent(
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Header
+        // Header row
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -798,11 +912,14 @@ private fun BiggestGlassContent(
             NotificationGlyphOrb(
                 notification = notification,
                 accentColor = accentColor,
-                orbSize = 34.dp
+                orbSize = 36.dp
             )
             Spacer(modifier = Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Text(
                         text = notification.conversationTitle ?: notification.appName,
                         style = MaterialTheme.typography.labelMedium,
@@ -811,12 +928,21 @@ private fun BiggestGlassContent(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    Text(
-                        text = "  $timeString",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted,
-                        maxLines = 1
-                    )
+                    if (liveChronoText != null) {
+                        Text(
+                            text = liveChronoText,
+                            style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                            color = accentColor,
+                            maxLines = 1
+                        )
+                    } else {
+                        Text(
+                            text = timeString,
+                            style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                            color = TextMuted,
+                            maxLines = 1
+                        )
+                    }
                 }
                 Text(
                     text = notification.title,
@@ -837,12 +963,12 @@ private fun BiggestGlassContent(
                 ) {
                     Text(
                         text = "+$queuedCount",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary,
+                        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                        color = TextPrimary,
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color.White.copy(alpha = 0.06f))
-                            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.08f))
+                            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
@@ -877,18 +1003,18 @@ private fun BiggestGlassContent(
             }
         }
 
-        // Body
+        // Body text + attachment
         if (!isReplying) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 44.dp),
+                    .padding(start = 46.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     if (notification.messageLines.size > 1) {
                         notification.messageLines.takeLast(2).forEach { line ->
@@ -922,32 +1048,34 @@ private fun BiggestGlassContent(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(10.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(10.dp))
                     )
                 }
             }
         }
 
+        // Progress tracker (Play Store / downloads / delivery milestones)
         if (!isReplying && notification.progressInfo != null) {
             ProgressTracker(
                 progressInfo = notification.progressInfo,
                 accentColor = accentColor,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 44.dp, top = 2.dp)
+                    .padding(start = 46.dp, top = 2.dp)
             )
         }
 
+        // 2FA OTP copy pill
         if (!isReplying && notification.detectedOtpCode != null) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 44.dp)
+                    .padding(start = 46.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
                     .clickable { onCopyOtp(notification.detectedOtpCode) }
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .padding(horizontal = 12.dp, vertical = 9.dp)
                     .testTag("drop_otp_banner"),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -964,7 +1092,10 @@ private fun BiggestGlassContent(
                     )
                     Text(
                         text = notification.detectedOtpCode,
-                        style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 1.5.sp),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            letterSpacing = 1.6.sp,
+                            fontFeatureSettings = "tnum"
+                        ),
                         color = TextPrimary
                     )
                 }
@@ -987,7 +1118,7 @@ private fun BiggestGlassContent(
             }
         }
 
-        // Inline reply
+        // Inline reply box
         AnimatedVisibility(visible = isReplying) {
             LiquidReplyBox(
                 replyText = replyText,
@@ -999,7 +1130,7 @@ private fun BiggestGlassContent(
             )
         }
 
-        // Actions
+        // Action row
         if (!isReplying) {
             if (notification.category == DropCategory.MEDIA) {
                 MediaTransportBar(
@@ -1010,13 +1141,13 @@ private fun BiggestGlassContent(
                     showOpen = notification.isLiveSystem,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 44.dp)
+                        .padding(start = 46.dp)
                 )
             } else {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 44.dp)
+                        .padding(start = 46.dp)
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1043,6 +1174,16 @@ private fun BiggestGlassContent(
                                 testTag = "drop_action_pill_${action.index}"
                             )
                         }
+                    }
+
+                    if (notification.hasReplyAction && notification.actions.none { it.isReply }) {
+                        GlassActionPill(
+                            label = notification.replyLabel ?: "Reply",
+                            icon = Icons.AutoMirrored.Rounded.Reply,
+                            accentColor = accentColor,
+                            onClick = onToggleReply,
+                            testTag = "drop_reply_pill"
+                        )
                     }
 
                     if (notification.detectedOtpCode != null &&
@@ -1081,18 +1222,24 @@ private fun ProgressTracker(
     val targetFraction = progressInfo.fraction.coerceIn(0f, 1f)
     val animatedFraction by animateFloatAsState(
         targetValue = targetFraction,
-        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
         label = "progressFraction"
     )
     val percent = (targetFraction * 100f).roundToInt()
     val hasMilestones = progressInfo.milestoneLabels.isNotEmpty()
     val currentMilestone = progressInfo.milestoneLabels
         .getOrNull(progressInfo.activeMilestoneIndex)
-    val statusText = when {
-        hasMilestones -> currentMilestone ?: progressInfo.milestoneLabels.first()
-        !progressInfo.etaLabel.isNullOrBlank() -> progressInfo.etaLabel
-        else -> if (progressInfo.indeterminate) "Working…" else "In progress"
-    }
+
+    val statusParts = listOfNotNull(
+        when {
+            hasMilestones -> currentMilestone ?: progressInfo.milestoneLabels.firstOrNull()
+            !progressInfo.detailLabel.isNullOrBlank() -> progressInfo.detailLabel
+            progressInfo.indeterminate -> "Working…"
+            else -> "Downloading"
+        },
+        progressInfo.etaLabel?.takeIf { !it.equals(progressInfo.detailLabel, ignoreCase = true) }
+    )
+    val statusText = statusParts.joinToString(" · ")
 
     var indeterminatePhase by remember { mutableFloatStateOf(0f) }
     if (progressInfo.indeterminate) {
@@ -1100,7 +1247,7 @@ private fun ProgressTracker(
         val phase by transition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing), RepeatMode.Restart),
+            animationSpec = infiniteRepeatable(tween(1300, easing = LinearEasing), RepeatMode.Restart),
             label = "indeterminatePhase"
         )
         indeterminatePhase = phase
@@ -1123,12 +1270,14 @@ private fun ProgressTracker(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = if (progressInfo.indeterminate) "—" else "$percent%",
-                style = MaterialTheme.typography.labelMedium,
-                color = TextPrimary
-            )
+            if (progressInfo.showPercentage || progressInfo.indeterminate) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (progressInfo.indeterminate) "•••" else "$percent%",
+                    style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                    color = TextPrimary
+                )
+            }
         }
 
         Canvas(
@@ -1138,27 +1287,27 @@ private fun ProgressTracker(
         ) {
             val trackHeight = size.height
             drawRoundRect(
-                color = Color.White.copy(alpha = 0.10f),
+                color = Color.White.copy(alpha = 0.14f),
                 size = size,
                 cornerRadius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
             )
             if (progressInfo.indeterminate) {
-                val segmentWidth = size.width * 0.32f
+                val segmentWidth = size.width * 0.34f
                 val startX = (size.width + segmentWidth) * indeterminatePhase - segmentWidth
-                drawRoundRect(
-                    brush = Brush.horizontalGradient(
-                        listOf(
-                            Color.Transparent,
-                            accentColor,
-                            Color.Transparent
+                val clampedStart = startX.coerceIn(0f, size.width)
+                val clampedEnd = (startX + segmentWidth).coerceIn(0f, size.width)
+                if (clampedEnd > clampedStart) {
+                    drawRoundRect(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(Color.Transparent, accentColor, Color.Transparent),
+                            startX = startX,
+                            endX = startX + segmentWidth
                         ),
-                        startX = startX,
-                        endX = startX + segmentWidth
-                    ),
-                    topLeft = Offset(startX.coerceIn(0f, size.width), 0f),
-                    size = Size(segmentWidth.coerceAtMost(size.width - startX.coerceIn(0f, size.width)), trackHeight),
-                    cornerRadius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
-                )
+                        topLeft = Offset(clampedStart, 0f),
+                        size = Size(clampedEnd - clampedStart, trackHeight),
+                        cornerRadius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
+                    )
+                }
             } else {
                 val fillWidth = size.width * animatedFraction
                 if (fillWidth > 0f) {
@@ -1239,7 +1388,7 @@ private fun MediaTransportBar(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(accentColor.copy(alpha = 0.16f))
+                    .background(accentColor.copy(alpha = 0.22f))
                     .clickable(onClick = { onMediaControl(MediaCommandAction.PLAY_PAUSE) })
                     .testTag("media_play_pause_button"),
                 contentAlignment = Alignment.Center
@@ -1293,7 +1442,9 @@ private fun LiquidReplyBox(
     val quickReplies = remember { listOf("On my way", "Got it", "In 5 min", "Thanks") }
 
     LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+        // Give WindowManager one brief frame to commit FLAG_NOT_FOCUSABLE removal before focusing input
+        delay(65L)
+        runCatching { focusRequester.requestFocus() }
         keyboard?.show()
     }
 
@@ -1313,8 +1464,8 @@ private fun LiquidReplyBox(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(9.dp))
-                        .background(Color.White.copy(alpha = 0.05f))
-                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(9.dp))
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(9.dp))
                         .clickable { onSend(preset) }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                         .testTag("quick_reply_${preset.lowercase().replace(" ", "_")}")
@@ -1322,7 +1473,7 @@ private fun LiquidReplyBox(
                     Text(
                         text = preset,
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
+                        color = TextPrimary
                     )
                 }
             }
@@ -1333,8 +1484,8 @@ private fun LiquidReplyBox(
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(Color.White.copy(alpha = 0.06f))
-                .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(14.dp))
+                .background(Color.White.copy(alpha = 0.09f))
+                .border(1.dp, accentColor.copy(alpha = 0.42f), RoundedCornerShape(14.dp))
                 .padding(start = 14.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1355,6 +1506,7 @@ private fun LiquidReplyBox(
                 ),
                 modifier = Modifier
                     .weight(1f)
+                    .padding(vertical = 10.dp)
                     .focusRequester(focusRequester)
                     .testTag("drop_reply_input"),
                 decorationBox = { inner ->
@@ -1383,9 +1535,9 @@ private fun LiquidReplyBox(
             }
             Box(
                 modifier = Modifier
-                    .size(38.dp)
+                    .size(40.dp)
                     .clip(CircleShape)
-                    .background(if (canSend) accentColor else Color.White.copy(alpha = 0.06f))
+                    .background(if (canSend) accentColor else Color.White.copy(alpha = 0.08f))
                     .clickable(enabled = canSend) { onSend(replyText.trim()) }
                     .testTag("drop_send_reply_button"),
                 contentAlignment = Alignment.Center
@@ -1407,6 +1559,22 @@ private fun LiquidReplyBox(
                 modifier = Modifier.padding(start = 4.dp)
             )
         }
+    }
+}
+
+private fun formatChronometer(baseMillis: Long, countDown: Boolean, nowMillis: Long): String {
+    val deltaSec = if (countDown) {
+        ((baseMillis - nowMillis) / 1000L).coerceAtLeast(0L)
+    } else {
+        abs(nowMillis - baseMillis) / 1000L
+    }
+    val hours = deltaSec / 3600L
+    val mins = (deltaSec % 3600L) / 60L
+    val secs = deltaSec % 60L
+    return if (hours > 0L) {
+        String.format("%d:%02d:%02d", hours, mins, secs)
+    } else {
+        String.format("%02d:%02d", mins, secs)
     }
 }
 
@@ -1449,8 +1617,8 @@ private fun GlassActionPill(
             modifier = Modifier
                 .height(32.dp)
                 .clip(RoundedCornerShape(9.dp))
-                .background(Color.White.copy(alpha = 0.05f))
-                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(9.dp))
+                .background(Color.White.copy(alpha = 0.08f))
+                .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(9.dp))
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp)
@@ -1487,8 +1655,8 @@ private fun NotificationGlyphOrb(
         modifier = Modifier
             .size(orbSize)
             .clip(CircleShape)
-            .background(accentColor.copy(alpha = 0.16f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape),
+            .background(accentColor.copy(alpha = 0.22f))
+            .border(1.dp, accentColor.copy(alpha = 0.32f), CircleShape),
         contentAlignment = Alignment.Center
     ) {
         if (iconBitmap != null) {

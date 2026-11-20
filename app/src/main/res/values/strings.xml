@@ -31,4 +31,6 @@
     <string name="coloros_guide_step1">1. Enable Notification Access &amp; Display Over Apps above so DropGlass intercepts incoming alerts in real time.</string>
     <string name="coloros_guide_step2">2. To hide ColorOS\'s duplicate stock banner, open Settings → Notifications &amp; Status Bar → App notifications and turn off Banner for apps you want in DropGlass.</string>
     <string name="coloros_guide_step3">3. In Battery → App management, set DropGlass to Allow background activity &amp; Auto-launch so the overlay stays alive between notifications.</string>
+    <string name="btn_app_info">App Info</string>
+    <string name="btn_reconnect_listener">Reconnect Bridge</string>
 </resources>

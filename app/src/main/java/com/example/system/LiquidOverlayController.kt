@@ -2,11 +2,17 @@ package com.example.system
 
 import android.content.Context
 import android.graphics.PixelFormat
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.view.ContextThemeWrapper
+import android.view.Display
 import android.view.Gravity
+import android.view.View
+import android.view.ViewTreeObserver
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
@@ -21,6 +27,7 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.example.R
 import com.example.model.ActionSemantic
 import com.example.model.DropCategory
 import com.example.model.MediaCommandAction
@@ -32,13 +39,32 @@ class LiquidOverlayController(
     private val onAllDismissed: () -> Unit = {}
 ) {
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val displayUiContext: Context by lazy {
+        val display = context.getSystemService(DisplayManager::class.java)
+            ?.getDisplay(Display.DEFAULT_DISPLAY)
+        val windowCtx = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && display != null) {
+            runCatching {
+                context.createDisplayContext(display)
+                    .createWindowContext(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, null)
+            }.getOrElse { context }
+        } else if (display != null) {
+            runCatching { context.createDisplayContext(display) }.getOrElse { context }
+        } else {
+            context
+        }
+        ContextThemeWrapper(windowCtx, R.style.Theme_MyApplication)
+    }
+
     private val windowManager: WindowManager? by lazy {
-        context.getSystemService(WindowManager::class.java)
+        displayUiContext.getSystemService(WindowManager::class.java)
+            ?: context.getSystemService(WindowManager::class.java)
     }
 
     private var overlayView: ComposeView? = null
     private var layoutParams: WindowManager.LayoutParams? = null
     private var viewTreeOwner: OverlayViewTreeOwner? = null
+    private var wantsFocus = false
 
     fun showOrUpdate(): Boolean {
         if (!SystemBridgeHelper.canDrawOverlays(context)) {
@@ -68,6 +94,7 @@ class LiquidOverlayController(
             mainHandler.post { detach() }
             return
         }
+        wantsFocus = false
         val view = overlayView
         if (view != null) {
             runCatching {
@@ -82,13 +109,17 @@ class LiquidOverlayController(
     }
 
     private fun attachOverlayIfNeeded(): Boolean {
-        if (overlayView != null) {
+        val existing = overlayView
+        if (existing != null) {
+            if (existing.visibility != View.VISIBLE) {
+                existing.visibility = View.VISIBLE
+            }
             LiveNotificationStore.setOverlayShowing(true)
             return true
         }
         val wm = windowManager ?: return false
 
-        val detected = SystemBridgeHelper.detectHardwareCutoutFromService(context)
+        val detected = SystemBridgeHelper.detectHardwareCutoutFromService(displayUiContext)
         if (detected.hasHardwareCutout) {
             LiveNotificationStore.updateDetectedCutout(detected)
         }
@@ -115,7 +146,7 @@ class LiquidOverlayController(
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             x = 0
             y = 0
-            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
@@ -126,12 +157,19 @@ class LiquidOverlayController(
         }
 
         val owner = OverlayViewTreeOwner().also { it.start() }
-        val composeView = ComposeView(context).apply {
+        val composeView = ComposeView(displayUiContext).apply {
             isFocusable = true
             isFocusableInTouchMode = true
             setViewTreeLifecycleOwner(owner)
             setViewTreeViewModelStoreOwner(owner)
             setViewTreeSavedStateRegistryOwner(owner)
+            viewTreeObserver.addOnWindowFocusChangeListener { hasFocus ->
+                if (hasFocus && wantsFocus) {
+                    requestFocus()
+                    val imm = displayUiContext.getSystemService(InputMethodManager::class.java)
+                    imm?.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+                }
+            }
             setContent {
                 val activeDrop by LiveNotificationStore.activeSystemDrop.collectAsState()
                 val queuedDrops by LiveNotificationStore.queuedDrops.collectAsState()
@@ -144,6 +182,7 @@ class LiquidOverlayController(
                         queuedCount = queuedDrops.size,
                         config = config,
                         detectedCutout = cutout,
+                        avoidSystemBanners = config.avoidSystemBanners && !config.replaceSystemHeadsUp,
                         onFocusRequested = { focusable ->
                             setOverlayFocusable(focusable)
                         },
@@ -151,25 +190,30 @@ class LiquidOverlayController(
                             LiveNotificationStore.cycleQueuedDrop()
                         },
                         onOpenNotification = { drop ->
-                            LiveNotificationStore.openNotification(drop, context)
-                            LiveNotificationStore.clearActiveSystemDrop(drop.key ?: drop.id)
-                            hideIfEmpty()
+                            val opened = LiveNotificationStore.openNotification(drop, displayUiContext)
+                            if (opened) {
+                                LiveNotificationStore.clearActiveSystemDrop(drop.key ?: drop.id)
+                                hideIfEmpty()
+                            }
                         },
                         onSendReply = { drop, replyText ->
-                            LiveNotificationStore.sendInlineReply(
+                            val sent = LiveNotificationStore.sendInlineReply(
                                 drop = drop,
                                 replyText = replyText,
-                                context = context,
+                                context = displayUiContext,
                                 actionIndex = drop.replyActionIndex
                             )
-                            LiveNotificationStore.clearActiveSystemDrop(drop.key ?: drop.id)
-                            hideIfEmpty()
+                            if (sent) {
+                                LiveNotificationStore.clearActiveSystemDrop(drop.key ?: drop.id)
+                                hideIfEmpty()
+                            }
+                            sent
                         },
                         onTriggerAction = { drop, index ->
                             val keepOpen = drop.actions.getOrNull(index)?.title?.contains("Milestone", ignoreCase = true) == true ||
                                 drop.hasMediaSession || drop.category == DropCategory.MEDIA
-                            LiveNotificationStore.triggerAction(drop, index, context)
-                            if (!keepOpen) {
+                            val executed = LiveNotificationStore.triggerAction(drop, index, displayUiContext)
+                            if (executed && !keepOpen) {
                                 LiveNotificationStore.clearActiveSystemDrop(drop.key ?: drop.id)
                                 hideIfEmpty()
                             }
@@ -189,12 +233,12 @@ class LiquidOverlayController(
                                     }
                                 }
                                 if (idx >= 0) {
-                                    LiveNotificationStore.triggerAction(drop, idx, context)
+                                    LiveNotificationStore.triggerAction(drop, idx, displayUiContext)
                                 }
                             }
                         },
                         onCopyOtp = { _, code ->
-                            LiveNotificationStore.copyOtpToClipboard(code, context)
+                            LiveNotificationStore.copyOtpToClipboard(code, displayUiContext)
                         },
                         onSnooze = { drop ->
                             LiveNotificationStore.snoozeNotification(drop)
@@ -234,21 +278,26 @@ class LiquidOverlayController(
     }
 
     private fun setOverlayFocusable(focusable: Boolean) {
+        wantsFocus = focusable
         val wm = windowManager ?: return
         val view = overlayView ?: return
         val params = layoutParams ?: return
         if (focusable) {
-            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-            params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
+            params.flags = params.flags and
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv() and
+                WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM.inv()
+            params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN or
                 WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
         } else {
             params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+            params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
         }
         runCatching {
             wm.updateViewLayout(view, params)
             if (focusable) {
-                view.requestFocus()
+                view.post {
+                    view.requestFocus()
+                }
             }
         }
     }

@@ -61,12 +61,14 @@ import com.example.model.GlassOpticsConfig
 import com.example.ui.StudioUiState
 import com.example.ui.components.LiquidGlassPanel
 import com.example.ui.components.StatusPillBadge
+import com.example.ui.theme.AccentAmber
+import com.example.ui.theme.AccentSage
+import com.example.ui.theme.CanvasBlack
+import com.example.ui.theme.FrostPrimary
+import com.example.ui.theme.SurfaceOne
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
-import com.example.ui.theme.FrostPrimary
-import com.example.ui.theme.AccentAmber
-import com.example.ui.theme.AccentSage
 
 @Composable
 fun BridgeScreen(
@@ -185,7 +187,7 @@ fun BridgeScreen(
                                 onUpdateConfig { it.copy(enableSystemOverlay = checked) }
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF041928),
+                                checkedThumbColor = CanvasBlack,
                                 checkedTrackColor = FrostPrimary
                             ),
                             modifier = Modifier.testTag("switch_enable_overlay")
@@ -203,12 +205,12 @@ fun BridgeScreen(
                             Text(
                                 text = "Hide Normal System Banners",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = GlassTextPrimary
+                                color = TextPrimary
                             )
                             Text(
-                                text = "Dismiss duplicate stock OS heads-up popups across all apps once DropGlass intercepts them",
+                                text = "Suppress duplicate stock OS heads-up banners once DropGlass intercepts them",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = GlassTextMuted
+                                color = TextMuted
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
@@ -218,8 +220,8 @@ fun BridgeScreen(
                                 onUpdateConfig { it.copy(replaceSystemHeadsUp = checked) }
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF041928),
-                                checkedTrackColor = IceCyanPrimary
+                                checkedThumbColor = CanvasBlack,
+                                checkedTrackColor = FrostPrimary
                             ),
                             modifier = Modifier.testTag("switch_replace_system_heads_up")
                         )
@@ -239,7 +241,7 @@ fun BridgeScreen(
                                 color = TextPrimary
                             )
                             Text(
-                                text = "Skip background tasks (keeps calls, media & live deliveries active)",
+                                text = "Skip background tasks (keeps calls, Play Store, timers, media & deliveries active)",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = TextMuted
                             )
@@ -251,7 +253,7 @@ fun BridgeScreen(
                                 onUpdateConfig { it.copy(suppressOngoing = checked) }
                             },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF041928),
+                                checkedThumbColor = CanvasBlack,
                                 checkedTrackColor = FrostPrimary
                             ),
                             modifier = Modifier.testTag("switch_suppress_ongoing")
@@ -304,7 +306,7 @@ fun BridgeScreen(
                     ) {
                         OutlinedButton(
                             onClick = onOpenBatterySettings,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
@@ -325,7 +327,7 @@ fun BridgeScreen(
                         }
                         OutlinedButton(
                             onClick = onOpenAppNotifications,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
@@ -352,7 +354,7 @@ fun BridgeScreen(
                     ) {
                         OutlinedButton(
                             onClick = onOpenAppInfo,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
@@ -361,19 +363,19 @@ fun BridgeScreen(
                             Icon(
                                 imageVector = Icons.Rounded.Settings,
                                 contentDescription = null,
-                                tint = IceCyanPrimary,
+                                tint = FrostPrimary,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = stringResource(R.string.btn_app_info),
                                 style = MaterialTheme.typography.labelLarge,
-                                color = GlassTextPrimary
+                                color = TextPrimary
                             )
                         }
                         OutlinedButton(
                             onClick = onReconnectListener,
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
@@ -382,14 +384,14 @@ fun BridgeScreen(
                             Icon(
                                 imageVector = Icons.Rounded.NotificationsActive,
                                 contentDescription = null,
-                                tint = if (uiState.isListenerConnected) LiquidEmerald else LiquidAmber,
+                                tint = if (uiState.isListenerConnected) AccentSage else AccentAmber,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = stringResource(R.string.btn_reconnect_listener),
                                 style = MaterialTheme.typography.labelLarge,
-                                color = GlassTextPrimary
+                                color = TextPrimary
                             )
                         }
                     }
@@ -398,7 +400,7 @@ fun BridgeScreen(
                         Text(
                             text = "Overlay warning: ${uiState.lastOverlayError}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = LiquidAmber
+                            color = AccentAmber
                         )
                     }
                 }
@@ -423,7 +425,7 @@ fun BridgeScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Once Notification Access is granted, incoming messages, deliveries, media, and OTPs appear here for instant replay or per-app filtering.",
+                            text = "Once Notification Access is granted, incoming messages, Play Store downloads, deliveries, media, and OTPs appear here for instant replay or per-app filtering.",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted
                         )
@@ -456,12 +458,12 @@ private fun PermissionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = 0.05f))
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.045f))
             .border(
                 width = 1.dp,
                 color = if (granted) AccentSage.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.10f),
-                shape = RoundedCornerShape(18.dp)
+                shape = RoundedCornerShape(16.dp)
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -532,9 +534,9 @@ private fun CapturedNotificationRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xB80E1624))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(SurfaceOne)
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

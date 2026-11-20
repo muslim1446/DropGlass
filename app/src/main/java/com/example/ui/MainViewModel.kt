@@ -416,7 +416,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             DropNotification(
                 id = "sample_msg",
                 packageName = "com.whatsapp",
-                appName = "Messages",
+                appName = "WhatsApp",
                 title = "Maya Lin",
                 text = "I'm downstairs — can you buzz me in?",
                 messageLines = listOf(
@@ -424,7 +424,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     DropMessageLine("Maya Lin", "I'm downstairs — can you buzz me in?")
                 ),
                 category = DropCategory.MESSAGE,
-                accentColorArgb = 0xFFAFC8D8.toInt(),
+                accentColorArgb = 0xFF3AD17A.toInt(),
                 hasReplyAction = true,
                 replyLabel = "Reply",
                 replyActionIndex = 0,
@@ -437,16 +437,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             DropNotification(
                 id = "sample_delivery",
                 packageName = "com.grab.delivery",
-                appName = "Courier Live",
+                appName = "GrabFood",
                 title = "Delivery · 2 min away",
                 text = "Courier is 220 m away on Orchard Blvd",
                 subText = "2 min",
                 category = DropCategory.DELIVERY,
-                accentColorArgb = 0xFF9DC5AA.toInt(),
+                accentColorArgb = 0xFF34D399.toInt(),
                 progressInfo = DropProgressInfo(
                     progress = 80,
                     max = 100,
-                    milestoneLabels = listOf("Ordered", "Picked Up", "En Route", "Arrived"),
+                    milestoneLabels = listOf("Ordered", "Picked Up", "En Route", "Delivered"),
                     activeMilestoneIndex = 2,
                     etaLabel = "2 min"
                 ),
@@ -458,12 +458,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             DropNotification(
                 id = "sample_media",
                 packageName = "com.spotify.music",
-                appName = "Music",
+                appName = "Spotify",
                 title = "Midnight Refraction",
                 text = "Solstice · Lossless 24-bit",
                 subText = "Playing",
                 category = DropCategory.MEDIA,
-                accentColorArgb = 0xFF9DC8C2.toInt(),
+                accentColorArgb = 0xFF2DD4BF.toInt(),
                 isMediaPlaying = true,
                 actions = listOf(
                     DropAction(0, "Previous", semantic = ActionSemantic.MEDIA_PREV),
@@ -474,11 +474,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             DropNotification(
                 id = "sample_otp",
                 packageName = "com.google.android.apps.messaging",
-                appName = "2FA Auth",
+                appName = "Messages",
                 title = "Security code",
                 text = "Your verification code is 849201. It expires in 5 minutes.",
                 category = DropCategory.OTP,
-                accentColorArgb = 0xFFD8B98B.toInt(),
+                accentColorArgb = 0xFFF2BA5A.toInt(),
                 detectedOtpCode = "849201",
                 actions = listOf(
                     DropAction(0, "Mark as Read", semantic = ActionSemantic.MARK_READ)
@@ -489,9 +489,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 packageName = "com.android.dialer",
                 appName = "Phone",
                 title = "Julian Mercer",
-                text = "Incoming call · Mobile",
+                text = "Active call · HD Voice",
+                usesChronometer = true,
+                chronometerBaseMillis = System.currentTimeMillis() - 42_000L,
                 category = DropCategory.CALL,
-                accentColorArgb = 0xFF9DC5AA.toInt(),
+                accentColorArgb = 0xFF5CE19A.toInt(),
                 actions = listOf(
                     DropAction(0, "Answer", semantic = ActionSemantic.ANSWER),
                     DropAction(1, "Decline", semantic = ActionSemantic.DECLINE)

@@ -171,4 +171,76 @@ class DropGlassFeaturesTest {
         org.junit.Assert.assertTrue(LiveNotificationStore.hasRecentFromPackage("com.whatsapp", 5000L))
         org.junit.Assert.assertFalse(LiveNotificationStore.hasRecentFromPackage("com.slack", 5000L))
     }
+
+    @Test
+    fun `play store download parsing keeps accurate progress without fake delivery milestones`() {
+        val extras = android.os.Bundle().apply {
+            putInt(android.app.Notification.EXTRA_PROGRESS, 47)
+            putInt(android.app.Notification.EXTRA_PROGRESS_MAX, 100)
+            putBoolean(android.app.Notification.EXTRA_PROGRESS_INDETERMINATE, false)
+            putCharSequence(android.app.Notification.EXTRA_SUB_TEXT, "12 s left")
+        }
+        val parsed = com.example.system.NotificationDropParser.extractProgressInfo(
+            packageName = "com.android.vending",
+            extras = extras,
+            title = "Downloading Spotify",
+            message = "42.1 MB / 89.5 MB",
+            isOngoing = true
+        )
+        assertNotNull(parsed)
+        assertEquals(47, parsed?.progress)
+        assertEquals(100, parsed?.max)
+        assertEquals("12 s left", parsed?.etaLabel)
+        org.junit.Assert.assertTrue(parsed?.milestoneLabels?.isEmpty() == true)
+    }
+
+    @Test
+    fun `play store installing state without max becomes indeterminate active progress`() {
+        val extras = android.os.Bundle()
+        val parsed = com.example.system.NotificationDropParser.extractProgressInfo(
+            packageName = "com.android.vending",
+            extras = extras,
+            title = "Spotify",
+            message = "Installing…",
+            isOngoing = true
+        )
+        assertNotNull(parsed)
+        org.junit.Assert.assertTrue(parsed?.indeterminate == true)
+        org.junit.Assert.assertTrue(parsed?.milestoneLabels?.isEmpty() == true)
+    }
+
+    @Test
+    fun `delivery notification infers active step from status keywords and live color extraction succeeds`() {
+        val extras = android.os.Bundle().apply {
+            putInt(android.app.Notification.EXTRA_PROGRESS, 72)
+            putInt(android.app.Notification.EXTRA_PROGRESS_MAX, 100)
+            putCharSequence(android.app.Notification.EXTRA_SUB_TEXT, "3 min")
+        }
+        val parsed = com.example.system.NotificationDropParser.extractProgressInfo(
+            packageName = "com.grab.delivery",
+            extras = extras,
+            title = "GrabFood · 3 min",
+            message = "Driver is nearby and on the way to you",
+            isOngoing = true
+        )
+        assertNotNull(parsed)
+        assertEquals(4, parsed?.milestoneLabels?.size)
+        assertEquals(2, parsed?.activeMilestoneIndex)
+        assertEquals("3 min", parsed?.etaLabel)
+
+        val bmp = android.graphics.Bitmap.createBitmap(16, 16, android.graphics.Bitmap.Config.ARGB_8888)
+        bmp.eraseColor(android.graphics.Color.rgb(34, 197, 94))
+        val extracted = com.example.system.NotificationDropParser.extractVibrantColor(bmp)
+        assertNotNull(extracted)
+        org.junit.Assert.assertTrue(android.graphics.Color.green(extracted!!) > android.graphics.Color.red(extracted))
+    }
+
+    @Test
+    fun `remote input reply intent carries typed text and foreground broadcast flag`() {
+        val remoteInput = android.app.RemoteInput.Builder("reply_key").build()
+        val fillIn = LiveNotificationStore.buildRemoteInputReplyIntent(arrayOf(remoteInput), "On my way now")
+        val extracted = android.app.RemoteInput.getResultsFromIntent(fillIn)?.getCharSequence("reply_key")?.toString()
+        assertEquals("On my way now", extracted)
+        org.junit.Assert.assertTrue((fillIn.flags and Intent.FLAG_RECEIVER_FOREGROUND) != 0)
+    }
 }

@@ -14,12 +14,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -31,17 +31,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.CanvasBlack
 import com.example.ui.theme.FrostPrimary
+import com.example.ui.theme.Hairline
 import com.example.ui.theme.SurfaceOne
 import com.example.ui.theme.SurfaceTwo
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 
-/**
- * A mostly still backdrop. Motion is reserved for the droplet itself; a moving
- * full-screen shader behind a translucent panel makes text shimmer and reads
- * as decoration rather than material.
- */
 @Composable
 fun LiquidSilkBackdrop(
     accentColor: Color,
@@ -50,35 +46,28 @@ fun LiquidSilkBackdrop(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF0C0E12),
-                        CanvasBlack,
-                        Color(0xFF050607)
-                    )
-                )
-            )
+            .background(CanvasBlack)
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        accentColor.copy(alpha = 0.09f),
+                        accentColor.copy(alpha = 0.14f),
+                        accentColor.copy(alpha = 0.04f),
                         Color.Transparent
                     ),
-                    center = Offset(size.width * 0.5f, size.height * 0.02f),
-                    radius = size.width * 0.9f
+                    center = Offset(size.width * 0.5f, size.height * 0.04f),
+                    radius = size.width * 0.85f
                 )
             )
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        Color.White.copy(alpha = 0.025f),
+                        Color.White.copy(alpha = 0.022f),
                         Color.Transparent
                     ),
-                    center = Offset(size.width * 0.1f, size.height * 0.85f),
-                    radius = size.width * 0.75f
+                    center = Offset(size.width * 0.15f, size.height * 0.88f),
+                    radius = size.width * 0.72f
                 )
             )
         }
@@ -99,8 +88,8 @@ fun LiquidGlassPanel(
         .background(
             Brush.verticalGradient(
                 colors = listOf(
-                    SurfaceTwo.copy(alpha = 0.86f),
-                    SurfaceOne.copy(alpha = 0.92f)
+                    SurfaceTwo.copy(alpha = 0.92f),
+                    SurfaceOne.copy(alpha = 0.96f)
                 )
             )
         )
@@ -109,8 +98,8 @@ fun LiquidGlassPanel(
             brush = Brush.verticalGradient(
                 colors = listOf(
                     Color.White.copy(alpha = 0.10f),
-                    accentGlow.copy(alpha = 0.10f),
-                    Color.White.copy(alpha = 0.04f)
+                    accentGlow.copy(alpha = 0.12f),
+                    Hairline.copy(alpha = 0.65f)
                 )
             ),
             shape = shape
@@ -154,7 +143,7 @@ fun OpticalSliderRow(
             )
             Text(
                 text = valueText,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
                 color = TextSecondary
             )
         }
@@ -165,7 +154,7 @@ fun OpticalSliderRow(
             colors = SliderDefaults.colors(
                 thumbColor = TextPrimary,
                 activeTrackColor = FrostPrimary,
-                inactiveTrackColor = Color.White.copy(alpha = 0.10f)
+                inactiveTrackColor = Color.White.copy(alpha = 0.12f)
             )
         )
     }
@@ -184,7 +173,7 @@ fun StatusPillBadge(
             .background(Color.White.copy(alpha = 0.055f))
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = 0.08f),
+                color = Color.White.copy(alpha = 0.10f),
                 shape = RoundedCornerShape(8.dp)
             )
             .padding(horizontal = 9.dp, vertical = 5.dp),

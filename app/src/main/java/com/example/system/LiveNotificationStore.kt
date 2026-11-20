@@ -68,6 +68,7 @@ object LiveNotificationStore {
     interface SystemNotificationBridge {
         fun dismissFromSystem(key: String)
         fun snoozeFromSystem(key: String, durationMillis: Long)
+        fun onOverlayHide() {}
     }
 
     fun updateConfig(config: GlassOpticsConfig) {
@@ -108,15 +109,12 @@ object LiveNotificationStore {
         }
 
         val current = _activeSystemDrop.value
-        if (current != null && (current.key != null && current.key == drop.key || current.id == drop.id)) {
-            // Update existing active droplet in place without restarting entry choreography
+        if (current != null && ((current.key != null && current.key == drop.key) || current.id == drop.id)) {
             _activeSystemDrop.value = drop.copy(
                 id = current.id,
                 updateCount = current.updateCount + 1
             )
         } else if (current != null && _isOverlayWindowShowing.value) {
-            // Different notification while one is active: keep current or swap?
-            // Put previous in queue so user never loses a burst of alerts, and surface the newest!
             _queuedDrops.update { q ->
                 val withoutDup = q.filterNot { it.id == drop.id || (drop.key != null && it.key == drop.key) }
                 (listOf(current) + withoutDup).take(6)
@@ -147,6 +145,11 @@ object LiveNotificationStore {
         }
         if (key != null) {
             systemActionsMap.remove(key)
+        } else {
+            systemActionsMap.clear()
+        }
+        if (_activeSystemDrop.value == null) {
+            listenerCallback?.onOverlayHide()
         }
     }
 
@@ -179,6 +182,9 @@ object LiveNotificationStore {
         context: Context,
         actionIndex: Int = -1
     ): Boolean {
+        val clean = replyText.trim()
+        if (clean.isEmpty()) return false
+
         val lookupKey = drop.key ?: drop.id
         val entry = systemActionsMap[lookupKey] ?: return false
         val targetAction = if (actionIndex >= 0) {
@@ -187,13 +193,32 @@ object LiveNotificationStore {
             entry.replyAction
         } ?: return false
 
-        val remoteInput = targetAction.remoteInputs?.firstOrNull() ?: entry.remoteInput ?: return false
-        val intent = Intent()
-        val bundle = Bundle().apply {
-            putCharSequence(remoteInput.resultKey, replyText)
+        val inputs = targetAction.remoteInputs
+            ?.takeIf { it.isNotEmpty() }
+            ?: entry.remoteInput?.let { arrayOf(it) }
+            ?: return false
+
+        val fillIn = buildRemoteInputReplyIntent(inputs, clean)
+        val pending = targetAction.actionIntent ?: return false
+        return sendPendingIntentSafely(pending, context, fillIn = fillIn)
+    }
+
+    internal fun buildRemoteInputReplyIntent(
+        remoteInputs: Array<RemoteInput>,
+        replyText: String
+    ): Intent {
+        val fillIn = Intent().apply {
+            addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
         }
-        RemoteInput.addResultsToIntent(arrayOf(remoteInput), intent, bundle)
-        return sendPendingIntentSafely(targetAction.actionIntent, context, fillIn = intent)
+        val bundle = Bundle()
+        for (input in remoteInputs) {
+            bundle.putCharSequence(input.resultKey, replyText)
+        }
+        RemoteInput.addResultsToIntent(remoteInputs, fillIn, bundle)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            RemoteInput.setResultsSource(fillIn, RemoteInput.SOURCE_FREE_FORM_INPUT)
+        }
+        return fillIn
     }
 
     fun controlMedia(drop: DropNotification, command: MediaCommand): Boolean {
@@ -237,8 +262,14 @@ object LiveNotificationStore {
         context: Context,
         fillIn: Intent?
     ): Boolean {
+        val isActivityTarget = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            pendingIntent.isActivity
+        } else {
+            fillIn == null
+        }
+
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            if (isActivityTarget && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 val options = ActivityOptions.makeBasic()
                     .setPendingIntentBackgroundActivityStartMode(
                         ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
@@ -253,13 +284,17 @@ object LiveNotificationStore {
                 if (fillIn != null) {
                     pendingIntent.send(context, 0, fillIn)
                 } else {
-                    pendingIntent.send()
+                    pendingIntent.send(context, 0, null)
                 }
             }
             true
         } catch (_: Throwable) {
             runCatching {
-                if (fillIn != null) pendingIntent.send(context, 0, fillIn) else pendingIntent.send()
+                if (fillIn != null) {
+                    pendingIntent.send(context, 0, fillIn)
+                } else {
+                    pendingIntent.send()
+                }
                 true
             }.getOrDefault(false)
         }
