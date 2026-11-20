@@ -104,6 +104,24 @@ object SystemBridgeHelper {
         }
     }
 
+    fun openAppInfoSettings(context: Context) {
+        val intent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.parse("package:${context.packageName}")
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
+    }
+
+    fun requestListenerRebind(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isNotificationListenerEnabled(context)) {
+            runCatching {
+                android.service.notification.NotificationListenerService.requestRebind(
+                    ComponentName(context, DropNotificationListenerService::class.java)
+                )
+            }
+        }
+    }
+
     fun detectHardwareCutout(activity: Activity): DetectedCutoutInfo {
         val metrics = activity.resources.displayMetrics
         val density = metrics.density.coerceAtLeast(1f)

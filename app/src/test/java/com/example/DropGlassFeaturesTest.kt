@@ -147,5 +147,28 @@ class DropGlassFeaturesTest {
         composeRule.onNodeWithTag("bridge_lazy_list")
             .performScrollToNode(hasTestTag("perm_notification_access_row"))
         composeRule.onNodeWithTag("perm_notification_access_row").assertIsDisplayed()
+        composeRule.onNodeWithTag("bridge_lazy_list")
+            .performScrollToNode(hasTestTag("switch_replace_system_heads_up"))
+        composeRule.onNodeWithTag("switch_replace_system_heads_up").assertIsDisplayed()
+        composeRule.onNodeWithTag("bridge_lazy_list")
+            .performScrollToNode(hasTestTag("bridge_app_info_button"))
+        composeRule.onNodeWithTag("bridge_app_info_button").assertIsDisplayed()
+        composeRule.onNodeWithTag("bridge_reconnect_listener_button").assertIsDisplayed()
+    }
+
+    @Test
+    fun `recent package lookup detects active drop for group summary suppression`() {
+        val drop = DropNotification(
+            id = "wa_1",
+            key = "wa_1",
+            packageName = "com.whatsapp",
+            appName = "WhatsApp",
+            title = "Maya",
+            text = "Outside now",
+            timestampMillis = System.currentTimeMillis()
+        )
+        LiveNotificationStore.publishSystemDrop(drop, null)
+        org.junit.Assert.assertTrue(LiveNotificationStore.hasRecentFromPackage("com.whatsapp", 5000L))
+        org.junit.Assert.assertFalse(LiveNotificationStore.hasRecentFromPackage("com.slack", 5000L))
     }
 }

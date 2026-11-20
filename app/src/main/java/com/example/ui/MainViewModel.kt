@@ -54,7 +54,8 @@ data class StudioUiState(
     val isPostNotificationsGranted: Boolean = true,
     val isListenerConnected: Boolean = false,
     val recentDrops: List<DropNotification> = emptyList(),
-    val feedbackBanner: String? = null
+    val feedbackBanner: String? = null,
+    val lastOverlayError: String? = null
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -84,20 +85,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    val uiState: StateFlow<StudioUiState> = combine(
-        baseFlow,
+    private val statusFlow = combine(
         _permissions,
         LiveNotificationStore.isListenerConnected,
         LiveNotificationStore.recentDrops,
-        _feedbackBanner
-    ) { state, perms, listenerConnected, recent, feedback ->
+        _feedbackBanner,
+        LiveNotificationStore.lastOverlayError
+    ) { perms, listenerConnected, recent, feedback, overlayErr ->
+        StatusTuple(perms, listenerConnected, recent, feedback, overlayErr)
+    }
+
+    val uiState: StateFlow<StudioUiState> = combine(
+        baseFlow,
+        statusFlow
+    ) { state, status ->
         state.copy(
-            isNotificationAccessGranted = perms.notificationAccess,
-            isOverlayPermissionGranted = perms.overlayAccess,
-            isPostNotificationsGranted = perms.postNotifications,
-            isListenerConnected = listenerConnected,
-            recentDrops = recent,
-            feedbackBanner = feedback
+            isNotificationAccessGranted = status.perms.notificationAccess,
+            isOverlayPermissionGranted = status.perms.overlayAccess,
+            isPostNotificationsGranted = status.perms.postNotifications,
+            isListenerConnected = status.listenerConnected,
+            recentDrops = status.recent,
+            feedbackBanner = status.feedback,
+            lastOverlayError = status.overlayError
         )
     }.stateIn(
         scope = viewModelScope,
@@ -128,6 +137,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             overlayAccess = overlayAccess,
             postNotifications = postGranted
         )
+        if (notifAccess && !LiveNotificationStore.isListenerConnected.value) {
+            SystemBridgeHelper.requestListenerRebind(ctx)
+        }
+    }
+
+    fun reconnectListener() {
+        val ctx = getApplication<Application>()
+        refreshPermissions()
+        if (_permissions.value.notificationAccess) {
+            SystemBridgeHelper.requestListenerRebind(ctx)
+            _feedbackBanner.value = "Requested OS notification listener rebind"
+        } else {
+            SystemBridgeHelper.openNotificationListenerSettings(ctx)
+        }
     }
 
     fun updateDetectedCutout(info: DetectedCutoutInfo) {
@@ -378,6 +401,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val notificationAccess: Boolean = false,
         val overlayAccess: Boolean = false,
         val postNotifications: Boolean = true
+    )
+
+    private data class StatusTuple(
+        val perms: PermissionSnapshot,
+        val listenerConnected: Boolean,
+        val recent: List<DropNotification>,
+        val feedback: String?,
+        val overlayError: String?
     )
 
     companion object {

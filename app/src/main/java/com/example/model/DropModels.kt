@@ -37,6 +37,7 @@ data class GlassOpticsConfig(
     val viscositySpeed: Float = 1.0f,
     val autoDismissSeconds: Float = 5.0f,
     val enableSystemOverlay: Boolean = true,
+    val replaceSystemHeadsUp: Boolean = true,
     val suppressOngoing: Boolean = true,
     val avoidSystemBanners: Boolean = true,
     val useSystemDynamicColor: Boolean = false,

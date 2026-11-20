@@ -34,6 +34,7 @@ class OpticsPreferencesRepository(private val context: Context) {
         val VISCOSITY_SPEED = floatPreferencesKey("viscosity_speed")
         val AUTO_DISMISS_SEC = floatPreferencesKey("auto_dismiss_seconds")
         val ENABLE_OVERLAY = booleanPreferencesKey("enable_system_overlay")
+        val REPLACE_HEADS_UP = booleanPreferencesKey("replace_system_heads_up")
         val SUPPRESS_ONGOING = booleanPreferencesKey("suppress_ongoing")
         val AVOID_BANNERS = booleanPreferencesKey("avoid_system_banners")
         val DYNAMIC_COLOR = booleanPreferencesKey("use_system_dynamic_color")
@@ -58,6 +59,7 @@ class OpticsPreferencesRepository(private val context: Context) {
             viscositySpeed = prefs[Keys.VISCOSITY_SPEED] ?: 1.0f,
             autoDismissSeconds = prefs[Keys.AUTO_DISMISS_SEC] ?: 4.5f,
             enableSystemOverlay = prefs[Keys.ENABLE_OVERLAY] ?: true,
+            replaceSystemHeadsUp = prefs[Keys.REPLACE_HEADS_UP] ?: true,
             suppressOngoing = prefs[Keys.SUPPRESS_ONGOING] ?: true,
             avoidSystemBanners = prefs[Keys.AVOID_BANNERS] ?: true,
             useSystemDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: false,
@@ -82,6 +84,7 @@ class OpticsPreferencesRepository(private val context: Context) {
                 viscositySpeed = prefs[Keys.VISCOSITY_SPEED] ?: 1.0f,
                 autoDismissSeconds = prefs[Keys.AUTO_DISMISS_SEC] ?: 4.5f,
                 enableSystemOverlay = prefs[Keys.ENABLE_OVERLAY] ?: true,
+                replaceSystemHeadsUp = prefs[Keys.REPLACE_HEADS_UP] ?: true,
                 suppressOngoing = prefs[Keys.SUPPRESS_ONGOING] ?: true,
                 avoidSystemBanners = prefs[Keys.AVOID_BANNERS] ?: true,
                 useSystemDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: false,
@@ -100,6 +103,7 @@ class OpticsPreferencesRepository(private val context: Context) {
             prefs[Keys.VISCOSITY_SPEED] = updated.viscositySpeed
             prefs[Keys.AUTO_DISMISS_SEC] = updated.autoDismissSeconds
             prefs[Keys.ENABLE_OVERLAY] = updated.enableSystemOverlay
+            prefs[Keys.REPLACE_HEADS_UP] = updated.replaceSystemHeadsUp
             prefs[Keys.SUPPRESS_ONGOING] = updated.suppressOngoing
             prefs[Keys.AVOID_BANNERS] = updated.avoidSystemBanners
             prefs[Keys.DYNAMIC_COLOR] = updated.useSystemDynamicColor

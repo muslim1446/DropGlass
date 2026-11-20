@@ -245,6 +245,10 @@ private fun DropGlassAppShell(viewModel: MainViewModel) {
                             onOpenAppNotifications = {
                                 SystemBridgeHelper.openAppNotificationSettings(context)
                             },
+                            onOpenAppInfo = {
+                                SystemBridgeHelper.openAppInfoSettings(context)
+                            },
+                            onReconnectListener = viewModel::reconnectListener,
                             onRequestPostNotifications = requestPostNotifications,
                             onUpdateConfig = viewModel::updateConfig,
                             onReplayDrop = viewModel::replayOnSystemOverlay,

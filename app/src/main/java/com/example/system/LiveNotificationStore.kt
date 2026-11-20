@@ -57,6 +57,9 @@ object LiveNotificationStore {
     private val _detectedCutout = MutableStateFlow(DetectedCutoutInfo())
     val detectedCutout: StateFlow<DetectedCutoutInfo> = _detectedCutout.asStateFlow()
 
+    private val _lastOverlayError = MutableStateFlow<String?>(null)
+    val lastOverlayError: StateFlow<String?> = _lastOverlayError.asStateFlow()
+
     private val systemActionsMap = ConcurrentHashMap<String, LiveSystemActions>()
 
     @Volatile
@@ -81,6 +84,21 @@ object LiveNotificationStore {
 
     fun setOverlayShowing(showing: Boolean) {
         _isOverlayWindowShowing.value = showing
+    }
+
+    fun setOverlayError(error: String?) {
+        _lastOverlayError.value = error
+    }
+
+    fun hasRecentFromPackage(packageName: String, windowMs: Long = 5000L): Boolean {
+        val now = System.currentTimeMillis()
+        val active = _activeSystemDrop.value
+        if (active != null && active.packageName == packageName && (now - active.timestampMillis) <= windowMs) {
+            return true
+        }
+        return _recentDrops.value.any {
+            it.packageName == packageName && (now - it.timestampMillis) <= windowMs
+        }
     }
 
     fun publishSystemDrop(drop: DropNotification, actions: LiveSystemActions?) {

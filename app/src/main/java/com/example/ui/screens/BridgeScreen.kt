@@ -76,6 +76,8 @@ fun BridgeScreen(
     onOpenOverlaySettings: () -> Unit,
     onOpenBatterySettings: () -> Unit,
     onOpenAppNotifications: () -> Unit,
+    onOpenAppInfo: () -> Unit,
+    onReconnectListener: () -> Unit,
     onRequestPostNotifications: () -> Unit,
     onUpdateConfig: ((GlassOpticsConfig) -> GlassOpticsConfig) -> Unit,
     onReplayDrop: (DropNotification) -> Unit,
@@ -199,6 +201,39 @@ fun BridgeScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
+                                text = "Hide Normal System Banners",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = GlassTextPrimary
+                            )
+                            Text(
+                                text = "Dismiss duplicate stock OS heads-up popups across all apps once DropGlass intercepts them",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = GlassTextMuted
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Switch(
+                            checked = uiState.config.replaceSystemHeadsUp,
+                            onCheckedChange = { checked ->
+                                onUpdateConfig { it.copy(replaceSystemHeadsUp = checked) }
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF041928),
+                                checkedTrackColor = IceCyanPrimary
+                            ),
+                            modifier = Modifier.testTag("switch_replace_system_heads_up")
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
                                 text = "Ignore Silent Ongoing",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = TextPrimary
@@ -309,6 +344,62 @@ fun BridgeScreen(
                                 color = TextPrimary
                             )
                         }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onOpenAppInfo,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .testTag("bridge_app_info_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Settings,
+                                contentDescription = null,
+                                tint = IceCyanPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = stringResource(R.string.btn_app_info),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = GlassTextPrimary
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = onReconnectListener,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .testTag("bridge_reconnect_listener_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.NotificationsActive,
+                                contentDescription = null,
+                                tint = if (uiState.isListenerConnected) LiquidEmerald else LiquidAmber,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = stringResource(R.string.btn_reconnect_listener),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = GlassTextPrimary
+                            )
+                        }
+                    }
+                    if (!uiState.lastOverlayError.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Overlay warning: ${uiState.lastOverlayError}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = LiquidAmber
+                        )
                     }
                 }
             }
