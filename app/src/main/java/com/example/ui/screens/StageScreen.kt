@@ -2,7 +2,6 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -33,13 +32,19 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Sms
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,10 +52,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -58,26 +66,23 @@ import com.example.R
 import com.example.model.DropNotification
 import com.example.model.DropStage
 import com.example.model.MediaCommandAction
+import com.example.system.ScreenEnvironmentMonitor
 import com.example.ui.RealOsAlertType
 import com.example.ui.StudioUiState
 import com.example.ui.components.LiquidGlassPanel
+import com.example.ui.components.PixelGroupPosition
+import com.example.ui.components.PixelGroupedCard
+import com.example.ui.components.PixelSectionHeader
 import com.example.ui.components.StatusPillBadge
 import com.example.ui.glass.WaterDropOverlayHost
-import com.example.ui.theme.AccentAmber
-import com.example.ui.theme.AccentSage
-import com.example.ui.theme.AccentTeal
-import com.example.ui.theme.CanvasBlack
-import com.example.ui.theme.FrostPrimary
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
 
 private enum class StageBackdropMode(val label: String) {
-    LIVE_TINT("Live Tint"),
-    BRIGHT_GLASS("Bright Card"),
-    OBSIDIAN("Obsidian")
+    LIVE_TINT("Wallpaper"),
+    BRIGHT_GLASS("Light App"),
+    OBSIDIAN("Dark App")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StageScreen(
     uiState: StudioUiState,
@@ -95,11 +100,28 @@ fun StageScreen(
     onGoToOptics: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val activeAccent = remember(uiState.previewDrop?.accentColorArgb) {
-        uiState.previewDrop?.let { Color(it.accentColorArgb) } ?: FrostPrimary
+    val context = LocalContext.current
+    val initialEnv = remember { ScreenEnvironmentMonitor.snapshot(context) }
+    val screenEnv by remember(context) { ScreenEnvironmentMonitor.observe(context) }
+        .collectAsState(initial = initialEnv)
+
+    val fallbackAccent = MaterialTheme.colorScheme.primary
+    val activeAccent = remember(uiState.previewDrop?.accentColorArgb, fallbackAccent) {
+        uiState.previewDrop?.let { Color(it.accentColorArgb) } ?: fallbackAccent
     }
     var selectedRealAlertType by remember { mutableStateOf(RealOsAlertType.MESSAGE) }
     var backdropMode by remember { mutableStateOf(StageBackdropMode.LIVE_TINT) }
+    val previewLumaHint = when (backdropMode) {
+        StageBackdropMode.LIVE_TINT -> if (screenEnv.isLightUiMode) 0.68f else 0.36f
+        StageBackdropMode.BRIGHT_GLASS -> 0.90f
+        StageBackdropMode.OBSIDIAN -> 0.10f
+    }
+
+    val backgroundEndColor = MaterialTheme.colorScheme.background
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val primaryContainerColor = MaterialTheme.colorScheme.primaryContainer
+    val tertiaryContainerColor = MaterialTheme.colorScheme.tertiaryContainer
+    val secondaryColor = MaterialTheme.colorScheme.secondary
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -112,27 +134,39 @@ fun StageScreen(
                 top = 0.dp,
                 bottom = bottomContentPadding.calculateBottomPadding() + 24.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Camera stage at y = 0 with switchable background so glass transparency & live color are clearly visible
+            // Live camera cutout optical preview canvas anchored at y = 0.
+            // Crisp backdrop elements live inside backdropContent so the AGSL lensing RenderEffect
+            // bends, disperses, and scatters real pixels inside the glass droplet!
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 276.dp),
+                        .heightIn(min = 276.dp)
+                        .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)),
                     contentAlignment = Alignment.TopCenter
                 ) {
-                    StageOpticalCanvas(
-                        mode = backdropMode,
-                        accentColor = activeAccent,
-                        modifier = Modifier.matchParentSize()
-                    )
                     WaterDropOverlayHost(
                         notification = uiState.previewDrop,
                         config = uiState.config,
                         detectedCutout = uiState.detectedCutout,
                         forcedStage = uiState.forcedStage,
                         showCameraRingGuide = true,
+                        screenEnvironment = screenEnv,
+                        screenLuminanceHint = previewLumaHint,
+                        backdropContent = {
+                            StageOpticalCanvas(
+                                mode = backdropMode,
+                                accentColor = activeAccent,
+                                primaryColor = primaryColor,
+                                secondaryColor = secondaryColor,
+                                primaryContainer = primaryContainerColor,
+                                tertiaryContainer = tertiaryContainerColor,
+                                fadeBottomColor = backgroundEndColor,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        },
                         onOpenNotification = onOpenPreview,
                         onSendReply = onReplyPreview,
                         onTriggerAction = onActionPreview,
@@ -143,43 +177,33 @@ fun StageScreen(
                 }
             }
 
-            // Header + live status + backdrop toggle
+            // Pixel Editorial Title + Ready Pill + Backdrop Segmented Control
             item {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.displaySmall,
+                            color = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.weight(1f)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(9.dp)
-                                    .clip(CircleShape)
-                                    .background(activeAccent)
-                            )
-                            Text(
-                                text = stringResource(R.string.app_name),
-                                style = MaterialTheme.typography.headlineMedium,
-                                color = TextPrimary
-                            )
-                        }
+                        )
                         val systemReady = uiState.isNotificationAccessGranted &&
                             uiState.isOverlayPermissionGranted
                         StatusPillBadge(
-                            text = if (systemReady) "Bridge Active" else "Setup Needed",
+                            text = if (systemReady) "Ready" else "Setup needed",
                             isActive = systemReady,
-                            activeColor = AccentSage,
+                            activeColor = MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier
+                                .heightIn(min = 36.dp)
                                 .clickable(onClick = onGoToBridge)
                                 .testTag("stage_bridge_badge")
                         )
@@ -187,237 +211,225 @@ fun StageScreen(
                     Text(
                         text = stringResource(R.string.stage_hint),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    SingleChoiceSegmentedButtonRow(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        StageBackdropMode.entries.forEach { mode ->
-                            StageSelectorChip(
-                                label = mode.label,
+                        StageBackdropMode.entries.forEachIndexed { idx, mode ->
+                            SegmentedButton(
                                 selected = backdropMode == mode,
-                                accent = activeAccent,
                                 onClick = { backdropMode = mode },
-                                testTag = "backdrop_chip_${mode.name.lowercase()}"
-                            )
+                                shape = SegmentedButtonDefaults.itemShape(
+                                    index = idx,
+                                    count = StageBackdropMode.entries.size
+                                ),
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .testTag("backdrop_chip_${mode.name.lowercase()}")
+                            ) {
+                                Text(
+                                    text = mode.label,
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // Size inspector
+            // Bubble Size Controls
             item {
-                LiquidGlassPanel(
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                    accentGlow = activeAccent
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Drop Stage",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = TextPrimary
-                        )
+                        PixelSectionHeader(title = "Bubble size")
                         Text(
                             text = uiState.forcedStage?.label ?: "Automatic",
                             style = MaterialTheme.typography.labelMedium,
-                            color = TextMuted
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 4.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        StageSelectorChip(
-                            label = "Auto",
-                            selected = uiState.forcedStage == null,
-                            accent = FrostPrimary,
-                            onClick = { onSelectForcedStage(null) },
-                            testTag = "stage_chip_auto"
-                        )
-                        DropStage.entries.forEach { stage ->
-                            StageSelectorChip(
-                                label = stage.label,
-                                selected = uiState.forcedStage == stage,
-                                accent = activeAccent,
-                                onClick = { onSelectForcedStage(stage) },
-                                testTag = "stage_chip_${stage.name.lowercase()}"
+                    LiquidGlassPanel {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            PixelStageChip(
+                                label = "Auto",
+                                selected = uiState.forcedStage == null,
+                                onClick = { onSelectForcedStage(null) },
+                                testTag = "stage_chip_auto"
                             )
+                            DropStage.entries.forEach { stage ->
+                                PixelStageChip(
+                                    label = stage.label,
+                                    selected = uiState.forcedStage == stage,
+                                    onClick = { onSelectForcedStage(stage) },
+                                    testTag = "stage_chip_${stage.name.lowercase()}"
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // Preset notifications
+            // Sample Notifications (Pixel Grouped Cards)
             item {
-                LiquidGlassPanel(
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                    accentGlow = activeAccent
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Text(
-                        text = "Interactive Previews",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
+                    PixelSectionHeader(
+                        title = "Sample notifications",
+                        modifier = Modifier.padding(bottom = 4.dp)
                     )
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = "Tap any category to watch the glass tint and layout adapt live.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextMuted
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ScenarioTile(
-                            title = "Message",
-                            subtitle = "Inline reply",
-                            icon = Icons.Rounded.Sms,
-                            accent = Color(0xFF3AD17A),
-                            onClick = { onTriggerPreset(0) },
-                            modifier = Modifier.weight(1f),
-                            testTag = "scenario_message"
-                        )
-                        ScenarioTile(
-                            title = "Delivery",
-                            subtitle = "Live milestones",
-                            icon = Icons.Rounded.LocalShipping,
-                            accent = AccentSage,
-                            onClick = { onTriggerPreset(1) },
-                            modifier = Modifier.weight(1f),
-                            testTag = "scenario_delivery"
+                    PixelGroupedCard(position = PixelGroupPosition.FIRST) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            PixelScenarioTile(
+                                title = "Message",
+                                subtitle = "Quick reply",
+                                icon = Icons.Rounded.Sms,
+                                onClick = { onTriggerPreset(0) },
+                                modifier = Modifier.weight(1f),
+                                testTag = "scenario_message"
+                            )
+                            PixelScenarioTile(
+                                title = "Delivery",
+                                subtitle = "Live ETA",
+                                icon = Icons.Rounded.LocalShipping,
+                                onClick = { onTriggerPreset(1) },
+                                modifier = Modifier.weight(1f),
+                                testTag = "scenario_delivery"
+                            )
+                        }
+                    }
+                    PixelGroupedCard(position = PixelGroupPosition.MIDDLE) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            PixelScenarioTile(
+                                title = "Media",
+                                subtitle = "Album tint",
+                                icon = Icons.Rounded.GraphicEq,
+                                onClick = { onTriggerPreset(2) },
+                                modifier = Modifier.weight(1f),
+                                testTag = "scenario_audio"
+                            )
+                            PixelScenarioTile(
+                                title = "2FA Code",
+                                subtitle = "One-tap copy",
+                                icon = Icons.Rounded.Key,
+                                onClick = { onTriggerPreset(3) },
+                                modifier = Modifier.weight(1f),
+                                testTag = "scenario_otp"
+                            )
+                        }
+                    }
+                    PixelGroupedCard(position = PixelGroupPosition.LAST) {
+                        PixelScenarioTile(
+                            title = "Incoming Call",
+                            subtitle = "Live timer & call actions",
+                            icon = Icons.Rounded.Call,
+                            onClick = { onTriggerPreset(4) },
+                            modifier = Modifier.fillMaxWidth(),
+                            testTag = "scenario_call"
                         )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ScenarioTile(
-                            title = "Media",
-                            subtitle = "Artwork tint",
-                            icon = Icons.Rounded.GraphicEq,
-                            accent = AccentTeal,
-                            onClick = { onTriggerPreset(2) },
-                            modifier = Modifier.weight(1f),
-                            testTag = "scenario_audio"
-                        )
-                        ScenarioTile(
-                            title = "2FA Code",
-                            subtitle = "One-tap copy",
-                            icon = Icons.Rounded.Key,
-                            accent = AccentAmber,
-                            onClick = { onTriggerPreset(3) },
-                            modifier = Modifier.weight(1f),
-                            testTag = "scenario_otp"
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    ScenarioTile(
-                        title = "Incoming Call",
-                        subtitle = "Live timer & actions",
-                        icon = Icons.Rounded.Call,
-                        accent = Color(0xFF5CE19A),
-                        onClick = { onTriggerPreset(4) },
-                        modifier = Modifier.fillMaxWidth(),
-                        testTag = "scenario_call"
-                    )
                 }
             }
 
-            // Real OS alert
+            // Send Real System Notification
             item {
-                LiquidGlassPanel(
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                    accentGlow = activeAccent
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = "Real System Test",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = "Dispatches an actual Android notification to verify background interception & replies.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextMuted
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        RealOsAlertType.entries.forEach { alertType ->
-                            StageSelectorChip(
-                                label = alertType.label,
-                                selected = selectedRealAlertType == alertType,
-                                accent = activeAccent,
-                                onClick = { selectedRealAlertType = alertType },
-                                testTag = "real_type_${alertType.name.lowercase()}"
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = { onSendLiveTest(selectedRealAlertType) },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = FrostPrimary,
-                                contentColor = CanvasBlack
-                            ),
+                    PixelSectionHeader(title = "Live system test")
+                    LiquidGlassPanel {
+                        Text(
+                            text = "Posts a real Android notification so you can test the floating overlay over any screen.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .testTag("fire_real_os_notification_button")
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.NotificationsActive,
-                                contentDescription = null,
-                                modifier = Modifier.size(17.dp)
-                            )
-                            Spacer(modifier = Modifier.width(7.dp))
-                            Text(
-                                text = "Send ${selectedRealAlertType.label}",
-                                style = MaterialTheme.typography.labelLarge
-                            )
+                            RealOsAlertType.entries.forEach { alertType ->
+                                PixelStageChip(
+                                    label = alertType.label,
+                                    selected = selectedRealAlertType == alertType,
+                                    onClick = { selectedRealAlertType = alertType },
+                                    testTag = "real_type_${alertType.name.lowercase()}"
+                                )
+                            }
                         }
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = { onSendLiveTest(selectedRealAlertType) },
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .testTag("fire_real_os_notification_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.NotificationsActive,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Send ${selectedRealAlertType.label}",
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
 
-                        OutlinedButton(
-                            onClick = onGoToOptics,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier
-                                .height(48.dp)
-                                .testTag("stage_tune_optics_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Tune,
-                                contentDescription = "Appearance",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(17.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Optics",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = TextSecondary
-                            )
+                            FilledTonalButton(
+                                onClick = onGoToOptics,
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier
+                                    .height(48.dp)
+                                    .testTag("stage_tune_optics_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Tune,
+                                    contentDescription = "Style",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = stringResource(R.string.tab_optics),
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
                         }
                     }
                 }
@@ -430,70 +442,147 @@ fun StageScreen(
 private fun StageOpticalCanvas(
     mode: StageBackdropMode,
     accentColor: Color,
+    primaryColor: Color,
+    secondaryColor: Color,
+    primaryContainer: Color,
+    tertiaryContainer: Color,
+    fadeBottomColor: Color,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
         when (mode) {
             StageBackdropMode.LIVE_TINT -> {
+                // Crisp Pixel Material You botanical/geometric backdrop shapes so AGSL lensing visibly bends & scatters color
                 drawRect(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            accentColor.copy(alpha = 0.34f),
-                            accentColor.copy(alpha = 0.14f),
-                            CanvasBlack
+                            primaryContainer,
+                            tertiaryContainer.copy(alpha = 0.85f),
+                            fadeBottomColor
                         )
                     )
                 )
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            accentColor.copy(alpha = 0.42f),
+                            accentColor.copy(alpha = 0.72f),
+                            accentColor.copy(alpha = 0.12f),
                             Color.Transparent
                         ),
-                        center = Offset(size.width * 0.25f, size.height * 0.42f),
-                        radius = size.width * 0.48f
+                        center = Offset(size.width * 0.24f, size.height * 0.42f),
+                        radius = size.width * 0.36f
                     )
                 )
                 drawCircle(
                     brush = Brush.radialGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.16f),
+                            primaryColor.copy(alpha = 0.58f),
+                            secondaryColor.copy(alpha = 0.16f),
                             Color.Transparent
                         ),
-                        center = Offset(size.width * 0.78f, size.height * 0.35f),
-                        radius = size.width * 0.42f
+                        center = Offset(size.width * 0.76f, size.height * 0.34f),
+                        radius = size.width * 0.34f
                     )
+                )
+                // Crisp pill geometry behind the droplet rim to showcase edge refraction
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.26f),
+                    topLeft = Offset(size.width * 0.14f, size.height * 0.22f),
+                    size = Size(size.width * 0.72f, size.height * 0.36f),
+                    cornerRadius = CornerRadius(42f, 42f)
+                )
+                drawCircle(
+                    color = accentColor.copy(alpha = 0.55f),
+                    radius = 28f,
+                    center = Offset(size.width * 0.30f, size.height * 0.39f)
+                )
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.45f),
+                    topLeft = Offset(size.width * 0.40f, size.height * 0.32f),
+                    size = Size(size.width * 0.34f, 14f),
+                    cornerRadius = CornerRadius(7f, 7f)
+                )
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.30f),
+                    topLeft = Offset(size.width * 0.40f, size.height * 0.42f),
+                    size = Size(size.width * 0.26f, 11f),
+                    cornerRadius = CornerRadius(6f, 6f)
                 )
             }
             StageBackdropMode.BRIGHT_GLASS -> {
+                // High-luminance Pixel Light App surface with crisp cards & dark typography strokes
                 drawRect(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFFDDE3EC),
-                            Color(0xFFB7C3D6),
-                            CanvasBlack
+                            Color(0xFFF6F8FC),
+                            Color(0xFFE9EFF8),
+                            fadeBottomColor
                         )
                     )
                 )
+                drawRoundRect(
+                    color = Color.White,
+                    topLeft = Offset(size.width * 0.08f, size.height * 0.14f),
+                    size = Size(size.width * 0.84f, size.height * 0.52f),
+                    cornerRadius = CornerRadius(36f, 36f)
+                )
                 drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            accentColor.copy(alpha = 0.45f),
-                            Color.Transparent
-                        ),
-                        center = Offset(size.width * 0.5f, size.height * 0.4f),
-                        radius = size.width * 0.52f
-                    )
+                    color = primaryColor.copy(alpha = 0.78f),
+                    radius = 26f,
+                    center = Offset(size.width * 0.20f, size.height * 0.28f)
+                )
+                drawRoundRect(
+                    color = Color(0xFF1A1D24).copy(alpha = 0.80f),
+                    topLeft = Offset(size.width * 0.28f, size.height * 0.22f),
+                    size = Size(size.width * 0.46f, 14f),
+                    cornerRadius = CornerRadius(7f, 7f)
+                )
+                drawRoundRect(
+                    color = Color(0xFF475569).copy(alpha = 0.55f),
+                    topLeft = Offset(size.width * 0.28f, size.height * 0.31f),
+                    size = Size(size.width * 0.54f, 11f),
+                    cornerRadius = CornerRadius(6f, 6f)
+                )
+                drawRoundRect(
+                    color = accentColor.copy(alpha = 0.55f),
+                    topLeft = Offset(size.width * 0.14f, size.height * 0.44f),
+                    size = Size(size.width * 0.72f, 18f),
+                    cornerRadius = CornerRadius(9f, 9f)
                 )
             }
             StageBackdropMode.OBSIDIAN -> {
+                // Crisp dark OLED app surface with luminous card accents
                 drawRect(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFF0A0C10),
-                            CanvasBlack
+                            Color(0xFF0E1117),
+                            Color(0xFF151922),
+                            fadeBottomColor
                         )
                     )
+                )
+                drawRoundRect(
+                    color = Color(0xFF1D222D),
+                    topLeft = Offset(size.width * 0.08f, size.height * 0.14f),
+                    size = Size(size.width * 0.84f, size.height * 0.52f),
+                    cornerRadius = CornerRadius(36f, 36f)
+                )
+                drawCircle(
+                    color = accentColor.copy(alpha = 0.65f),
+                    radius = 28f,
+                    center = Offset(size.width * 0.22f, size.height * 0.30f)
+                )
+                drawRoundRect(
+                    color = Color(0xFFE2E8F0).copy(alpha = 0.42f),
+                    topLeft = Offset(size.width * 0.32f, size.height * 0.24f),
+                    size = Size(size.width * 0.44f, 13f),
+                    cornerRadius = CornerRadius(7f, 7f)
+                )
+                drawRoundRect(
+                    color = Color(0xFF94A3B8).copy(alpha = 0.28f),
+                    topLeft = Offset(size.width * 0.32f, size.height * 0.33f),
+                    size = Size(size.width * 0.52f, 11f),
+                    cornerRadius = CornerRadius(6f, 6f)
                 )
             }
         }
@@ -501,91 +590,81 @@ private fun StageOpticalCanvas(
 }
 
 @Composable
-private fun StageSelectorChip(
+private fun PixelStageChip(
     label: String,
     selected: Boolean,
-    accent: Color,
     onClick: () -> Unit,
     testTag: String
 ) {
-    Box(
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge
+            )
+        },
+        shape = RoundedCornerShape(50),
+        colors = FilterChipDefaults.filterChipColors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+        ),
         modifier = Modifier
-            .height(40.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (selected) accent.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.04f))
-            .border(
-                width = 1.dp,
-                color = if (selected) accent.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(10.dp)
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = accent),
-                onClick = onClick
-            )
-            .padding(horizontal = 14.dp)
-            .testTag(testTag),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (selected) TextPrimary else TextSecondary
-        )
-    }
+            .heightIn(min = 48.dp)
+            .testTag(testTag)
+    )
 }
 
 @Composable
-private fun ScenarioTile(
+private fun PixelScenarioTile(
     title: String,
     subtitle: String,
     icon: ImageVector,
-    accent: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     testTag: String
 ) {
     Row(
         modifier = modifier
-            .height(58.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White.copy(alpha = 0.035f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+            .heightIn(min = 60.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = accent),
+                indication = ripple(color = MaterialTheme.colorScheme.primary),
                 onClick = onClick
             )
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
             .testTag(testTag),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(accent.copy(alpha = 0.16f)),
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = accent,
-                modifier = Modifier.size(17.dp)
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(19.dp)
             )
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = TextMuted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
         }

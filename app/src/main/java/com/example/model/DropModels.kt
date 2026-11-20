@@ -11,10 +11,10 @@ enum class DropStage(val label: String, val index: Int) {
 }
 
 enum class GlassStyle(val displayName: String, val subtitle: String) {
-    CRYSTAL_CLEAR("Clear", "Light, cool glass with a crisp edge"),
-    OBSIDIAN_SMOKE("Smoked", "Dark, high-contrast glass for bright content"),
-    IRIDESCENT_PRISM("Iridescent", "A faint spectral shift along the rim"),
-    COLOROS_ADAPTIVE("Adaptive", "Tinted by the source app's colour")
+    CRYSTAL_CLEAR("Clear", "Refractive crystal that flips for light or dark backdrops"),
+    OBSIDIAN_SMOKE("Smoked", "Deep translucent glass for high contrast anywhere"),
+    IRIDESCENT_PRISM("Prism", "Chromatic dispersion with spectral edge shimmer"),
+    COLOROS_ADAPTIVE("Tinted", "Subsurface color bleed from each notification")
 }
 
 enum class CameraPreset(val label: String) {
@@ -31,16 +31,17 @@ data class GlassOpticsConfig(
     val cameraRadiusDp: Float = 11.5f,
     val dropGapDp: Float = 7f,
     val glassStyle: GlassStyle = GlassStyle.CRYSTAL_CLEAR,
-    val refractionIntensity: Float = 0.88f,
+    val refractionIntensity: Float = 0.92f,
     val blurRadiusDp: Float = 28f,
-    val specularRimIntensity: Float = 0.92f,
+    val specularRimIntensity: Float = 0.95f,
     val viscositySpeed: Float = 1.0f,
     val autoDismissSeconds: Float = 5.0f,
     val enableSystemOverlay: Boolean = true,
     val replaceSystemHeadsUp: Boolean = true,
     val suppressOngoing: Boolean = true,
     val avoidSystemBanners: Boolean = true,
-    val useSystemDynamicColor: Boolean = false,
+    val useSystemDynamicColor: Boolean = true,
+    val adaptiveContrastBlur: Boolean = true,
     val blockedPackages: Set<String> = emptySet()
 ) {
     companion object {

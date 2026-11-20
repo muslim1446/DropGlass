@@ -98,6 +98,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -131,17 +132,86 @@ import com.example.model.DropStage
 import com.example.model.GlassOpticsConfig
 import com.example.model.GlassStyle
 import com.example.model.MediaCommandAction
+import com.example.system.DynamicBlurProfile
+import com.example.system.ScreenEnvironmentCalculator
+import com.example.system.ScreenEnvironmentMonitor
+import com.example.system.ScreenEnvironmentState
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.AccentRose
 import com.example.ui.theme.CanvasBlack
 import com.example.ui.theme.FrostPrimary
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import kotlinx.coroutines.delay
 import java.util.Date
 import kotlin.math.abs
 import kotlin.math.roundToInt
+
+@Immutable
+data class GlassVibrancyPalette(
+    val isLightGlass: Boolean,
+    val inkPrimary: Color,
+    val inkSecondary: Color,
+    val inkMuted: Color,
+    val accentForeground: Color,
+    val pillSurface: Color,
+    val pillBorder: Color,
+    val trackBackground: Color,
+    val sendIconTint: Color,
+    val textShadow: Shadow
+)
+
+internal fun computeGlassVibrancyPalette(
+    isLightGlass: Boolean,
+    accentColor: Color
+): GlassVibrancyPalette {
+    return if (isLightGlass) {
+        val deepAccent = if (accentColor.luminance() > 0.42f) {
+            lerp(accentColor, Color(0xFF0F172A), 0.36f)
+        } else {
+            accentColor
+        }
+        GlassVibrancyPalette(
+            isLightGlass = true,
+            inkPrimary = lerp(Color(0xFF10131A), deepAccent, 0.08f),
+            inkSecondary = lerp(Color(0xFF333947), deepAccent, 0.10f),
+            inkMuted = lerp(Color(0xFF565E6E), deepAccent, 0.08f),
+            accentForeground = deepAccent,
+            pillSurface = lerp(Color.Black.copy(alpha = 0.075f), deepAccent.copy(alpha = 0.12f), 0.35f),
+            pillBorder = Color.Black.copy(alpha = 0.10f),
+            trackBackground = Color.Black.copy(alpha = 0.12f),
+            sendIconTint = Color.White,
+            textShadow = Shadow.None
+        )
+    } else {
+        val luminousAccent = if (accentColor.luminance() < 0.32f) {
+            lerp(accentColor, Color(0xFFF8FAFC), 0.30f)
+        } else {
+            accentColor
+        }
+        GlassVibrancyPalette(
+            isLightGlass = false,
+            inkPrimary = lerp(Color(0xFFF8FAFC), luminousAccent, 0.07f),
+            inkSecondary = lerp(Color(0xFFDCE4F0), luminousAccent, 0.09f),
+            inkMuted = lerp(Color(0xFFB4BDCF), luminousAccent, 0.06f),
+            accentForeground = luminousAccent,
+            pillSurface = lerp(Color.White.copy(alpha = 0.14f), luminousAccent.copy(alpha = 0.18f), 0.25f),
+            pillBorder = Color.White.copy(alpha = 0.18f),
+            trackBackground = Color.White.copy(alpha = 0.16f),
+            sendIconTint = CanvasBlack,
+            textShadow = Shadow(
+                color = Color.Black.copy(alpha = 0.45f),
+                offset = Offset(0f, 1f),
+                blurRadius = 3f
+            )
+        )
+    }
+}
 
 @Composable
 fun WaterDropOverlayHost(
@@ -153,6 +223,17 @@ fun WaterDropOverlayHost(
     forcedStage: DropStage? = null,
     showCameraRingGuide: Boolean = false,
     avoidSystemBanners: Boolean = false,
+    screenEnvironment: ScreenEnvironmentState = ScreenEnvironmentState(),
+    screenLuminanceHint: Float? = null,
+    backdropContent: (@Composable BoxScope.() -> Unit)? = null,
+    onExpandedBoundsChanged: (
+        visible: Boolean,
+        centerOffsetXpx: Int,
+        topPx: Int,
+        widthPx: Int,
+        heightPx: Int,
+        blurProfile: DynamicBlurProfile
+    ) -> Unit = { _, _, _, _, _, _ -> },
     onFocusRequested: (Boolean) -> Unit = {},
     onCycleQueue: () -> Unit = {},
     onOpenNotification: (DropNotification) -> Unit = {},
@@ -379,17 +460,123 @@ fun WaterDropOverlayHost(
             if (notification != null) Color(notification.accentColorArgb) else FrostPrimary
         }
 
+        val hostContext = LocalContext.current
+        val deviceTilt by remember(hostContext) {
+            ScreenEnvironmentMonitor.observeTilt(hostContext)
+        }.collectAsState(initial = 0f to 0f)
+
+        val targetThickness = ScreenEnvironmentCalculator.thicknessForStage(activeStage)
+        val animThickness by animateFloatAsState(
+            targetValue = targetThickness,
+            animationSpec = springSpecFloat,
+            label = "glassThickness"
+        )
+
+        val blurProfile = remember(config, screenEnvironment, screenLuminanceHint, animThickness) {
+            ScreenEnvironmentCalculator.computeProfile(
+                config = config,
+                env = screenEnvironment,
+                screenLuminanceOverride = screenLuminanceHint,
+                componentThickness = animThickness
+            )
+        }
+        val vibrancy = remember(blurProfile.isLightGlassMode, accentColor) {
+            computeGlassVibrancyPalette(
+                isLightGlass = blurProfile.isLightGlassMode,
+                accentColor = accentColor
+            )
+        }
+
+        val camOffsetX = with(density) { effectiveCamCenterXdp.dp.roundToPx() }
+        val dropTopRoundPx = with(density) { animTop.roundToPx() }
+        val maxCardWidthPx = with(density) { maxCardWidth.roundToPx() }
+
+        LaunchedEffect(
+            notification?.id,
+            activeStage,
+            fullContentHeightPx,
+            fullContentAlpha,
+            camOffsetX,
+            dropTopRoundPx,
+            maxCardWidthPx,
+            blurProfile
+        ) {
+            val isExpandedVisible = notification != null &&
+                activeStage == DropStage.BIGGEST_GLASS &&
+                fullContentHeightPx > 0 &&
+                fullContentAlpha > 0.55f
+            onExpandedBoundsChanged(
+                isExpandedVisible,
+                camOffsetX,
+                dropTopRoundPx,
+                maxCardWidthPx,
+                fullContentHeightPx,
+                blurProfile
+            )
+        }
+
         val measuredStageHeight = if (activeStage == DropStage.BIGGEST_GLASS && fullContentHeightPx > 0) {
             maxOf(animHeight, fullContentHeightDp)
         } else {
             animHeight
         }
         val totalStageHeight = (animTop + measuredStageHeight + 18.dp).coerceAtLeast(92.dp)
+        var stageSizePx by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+
+        val activeLensRenderEffect = if (
+            backdropContent != null &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            stageSizePx.width > 0 &&
+            stageSizePx.height > 0 &&
+            notification != null &&
+            (activeStage != DropStage.CAMERA_SEED || showCameraRingGuide)
+        ) {
+            with(density) {
+                val widthPx = stageSizePx.width.toFloat()
+                val heightPx = stageSizePx.height.toFloat()
+                val camCenterX = widthPx / 2f + effectiveCamCenterXdp.dp.toPx()
+                val camRadiusPx = effectiveCamRadiusDp.dp.toPx()
+                val camCenterY = effectiveCamTopMarginDp.dp.toPx() + camRadiusPx
+                val dropW = animWidth.toPx() * pulseScale.value
+                val dropH = (if (activeStage == DropStage.BIGGEST_GLASS && fullContentHeightPx > 0) {
+                    maxOf(animHeight.toPx(), fullContentHeightPx.toFloat())
+                } else {
+                    animHeight.toPx()
+                }) * pulseScale.value
+                val dropTopPx = animTop.toPx()
+                val dropCenterY = dropTopPx + dropH / 2f
+                LiquidGlassShaders.createLiquidGlassRenderEffect(
+                    canvasWidth = widthPx,
+                    canvasHeight = heightPx,
+                    camCenterX = camCenterX,
+                    camCenterY = camCenterY,
+                    camRadius = camRadiusPx + 2.dp.toPx(),
+                    dropCenterX = camCenterX,
+                    dropCenterY = dropCenterY,
+                    dropHalfW = dropW / 2f,
+                    dropHalfH = dropH / 2f,
+                    dropCorner = animCorner.toPx(),
+                    neckBlend = animNeckBlend.dp.toPx(),
+                    specular = config.specularRimIntensity,
+                    refraction = config.refractionIntensity,
+                    accentColor = accentColor,
+                    styleMode = config.glassStyle.ordinal,
+                    blurRadiusPx = blurProfile.effectiveBlurDp.dp.toPx(),
+                    thickness = blurProfile.thicknessFactor,
+                    tiltX = deviceTilt.first,
+                    tiltY = deviceTilt.second,
+                    screenLumaHint = blurProfile.effectiveScreenLuma
+                )
+            }
+        } else {
+            null
+        }
 
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .height(totalStageHeight)
+                .onSizeChanged { stageSizePx = it }
                 .pointerInput(notification?.id, activeStage) {
                     if (notification == null) return@pointerInput
                     detectVerticalDragGestures(
@@ -414,7 +601,26 @@ fun WaterDropOverlayHost(
                 },
             contentAlignment = Alignment.TopCenter
         ) {
-            // Layer 1: Optical liquid glass SDF shader
+            // Optional real-pixel backdrop warped directly by the AGSL lensing RenderEffect
+            if (backdropContent != null) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .then(
+                            if (activeLensRenderEffect != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                Modifier.graphicsLayer {
+                                    renderEffect = activeLensRenderEffect.asComposeRenderEffect()
+                                }
+                            } else {
+                                Modifier
+                            }
+                        )
+                ) {
+                    backdropContent()
+                }
+            }
+
+            // Layer 1: Optical liquid glass SDF shader (fallback / overlay window / camera ring guide)
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val camCenterX = size.width / 2f + effectiveCamCenterXdp.dp.toPx()
                 val camRadiusPx = effectiveCamRadiusDp.dp.toPx()
@@ -431,9 +637,12 @@ fun WaterDropOverlayHost(
                 val dropCenterY = dropTopPx + dropH / 2f
                 val cornerPx = animCorner.toPx()
 
-                if (notification != null && (activeStage != DropStage.CAMERA_SEED || showCameraRingGuide)) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        val brush = LiquidGlassShaders.createLiquidDropBrush(
+                if (activeLensRenderEffect == null &&
+                    notification != null &&
+                    (activeStage != DropStage.CAMERA_SEED || showCameraRingGuide)
+                ) {
+                    val brush = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        LiquidGlassShaders.createLiquidDropBrush(
                             canvasWidth = size.width,
                             canvasHeight = size.height,
                             camCenterX = camCenterX,
@@ -448,8 +657,18 @@ fun WaterDropOverlayHost(
                             specular = config.specularRimIntensity,
                             refraction = config.refractionIntensity,
                             accentColor = accentColor,
-                            styleMode = config.glassStyle.ordinal
+                            styleMode = config.glassStyle.ordinal,
+                            blurDepth = blurProfile.blurDepthNormalized,
+                            screenLuma = blurProfile.effectiveScreenLuma,
+                            liveBlurActive = blurProfile.useCrossWindowBlur,
+                            thickness = blurProfile.thicknessFactor,
+                            tiltX = deviceTilt.first,
+                            tiltY = deviceTilt.second
                         )
+                    } else {
+                        null
+                    }
+                    if (brush != null) {
                         drawRect(brush = brush)
                     } else {
                         drawFallbackWaterDropGlass(
@@ -461,7 +680,8 @@ fun WaterDropOverlayHost(
                             neckStrength = (animNeckBlend / 26f).coerceIn(0f, 1f),
                             accentColor = accentColor,
                             style = config.glassStyle,
-                            specular = config.specularRimIntensity
+                            specular = config.specularRimIntensity,
+                            blurProfile = blurProfile
                         )
                     }
                 }
@@ -486,8 +706,6 @@ fun WaterDropOverlayHost(
                     )
                 }
             }
-
-            val camOffsetX = with(density) { effectiveCamCenterXdp.dp.roundToPx() }
 
             // Layer 2a: Compact morph stages (Small orb / Medium pill)
             if (notification != null &&
@@ -515,11 +733,11 @@ fun WaterDropOverlayHost(
                         when (stage) {
                             DropStage.SMALL_DROP -> SmallDropContent(
                                 notification = notification,
-                                accentColor = accentColor
+                                accentColor = vibrancy.accentForeground
                             )
                             DropStage.MEDIUM_PILL -> MediumPillContent(
                                 notification = notification,
-                                accentColor = accentColor,
+                                vibrancy = vibrancy,
                                 targetWidth = pillTargetWidth,
                                 contentAlpha = compactContentAlpha,
                                 nowMillis = nowMillis
@@ -560,7 +778,7 @@ fun WaterDropOverlayHost(
                     BiggestGlassContent(
                         notification = notification,
                         queuedCount = queuedCount,
-                        accentColor = accentColor,
+                        vibrancy = vibrancy,
                         isReplying = isReplying,
                         replyText = replyText,
                         replyError = replyError,
@@ -615,32 +833,45 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFallbackWaterDr
     neckStrength: Float,
     accentColor: Color,
     style: GlassStyle,
-    specular: Float
+    specular: Float,
+    blurProfile: DynamicBlurProfile
 ) {
-    val bodyAlpha = when (style) {
-        GlassStyle.CRYSTAL_CLEAR -> 0.52f
-        GlassStyle.OBSIDIAN_SMOKE -> 0.78f
-        GlassStyle.IRIDESCENT_PRISM -> 0.56f
-        GlassStyle.COLOROS_ADAPTIVE -> 0.58f
+    val baseAlpha = when (style) {
+        GlassStyle.CRYSTAL_CLEAR -> 0.56f
+        GlassStyle.OBSIDIAN_SMOKE -> 0.80f
+        GlassStyle.IRIDESCENT_PRISM -> 0.60f
+        GlassStyle.COLOROS_ADAPTIVE -> 0.62f
     }
+    val blurUnavailable = if (blurProfile.useCrossWindowBlur) 0f else 0.16f
+    val dynamicBoost = (blurProfile.effectiveScreenLuma * 0.28f + blurUnavailable + blurProfile.blurDepthNormalized * 0.08f)
+    val lightGlass = blurProfile.isLightGlassMode
+    val bodyAlpha = (baseAlpha + dynamicBoost).coerceIn(0.48f, 0.90f)
     val tintMix = when (style) {
-        GlassStyle.COLOROS_ADAPTIVE -> 0.34f
+        GlassStyle.COLOROS_ADAPTIVE -> 0.30f
         GlassStyle.CRYSTAL_CLEAR -> 0.14f
-        GlassStyle.IRIDESCENT_PRISM -> 0.22f
+        GlassStyle.IRIDESCENT_PRISM -> 0.20f
         GlassStyle.OBSIDIAN_SMOKE -> 0.08f
     }
-    val topGlass = Color(
-        red = (0.09f + accentColor.red * tintMix).coerceIn(0f, 1f),
-        green = (0.10f + accentColor.green * tintMix).coerceIn(0f, 1f),
-        blue = (0.13f + accentColor.blue * tintMix).coerceIn(0f, 1f),
-        alpha = bodyAlpha
-    )
-    val bottomGlass = Color(
-        red = (0.04f + accentColor.red * (tintMix * 0.6f)).coerceIn(0f, 1f),
-        green = (0.05f + accentColor.green * (tintMix * 0.6f)).coerceIn(0f, 1f),
-        blue = (0.07f + accentColor.blue * (tintMix * 0.6f)).coerceIn(0f, 1f),
-        alpha = (bodyAlpha + 0.08f).coerceAtMost(0.90f)
-    )
+    val topGlass = if (lightGlass) {
+        lerp(Color(0xFFF3F6FB), accentColor, tintMix * 0.35f).copy(alpha = bodyAlpha.coerceAtLeast(0.72f))
+    } else {
+        Color(
+            red = (0.07f + accentColor.red * tintMix).coerceIn(0f, 1f),
+            green = (0.08f + accentColor.green * tintMix).coerceIn(0f, 1f),
+            blue = (0.11f + accentColor.blue * tintMix).coerceIn(0f, 1f),
+            alpha = bodyAlpha
+        )
+    }
+    val bottomGlass = if (lightGlass) {
+        lerp(Color(0xFFE7EDF7), accentColor, tintMix * 0.25f).copy(alpha = (bodyAlpha + 0.06f).coerceIn(0.76f, 0.92f))
+    } else {
+        Color(
+            red = (0.03f + accentColor.red * (tintMix * 0.5f)).coerceIn(0f, 1f),
+            green = (0.04f + accentColor.green * (tintMix * 0.5f)).coerceIn(0f, 1f),
+            blue = (0.06f + accentColor.blue * (tintMix * 0.5f)).coerceIn(0f, 1f),
+            alpha = (bodyAlpha + 0.08f).coerceAtMost(0.92f)
+        )
+    }
 
     if (neckStrength > 0.05f) {
         val neckHalfTop = camRadius * (0.65f + 0.25f * neckStrength)
@@ -724,7 +955,7 @@ private fun SmallDropContent(
 @Composable
 private fun MediumPillContent(
     notification: DropNotification,
-    accentColor: Color,
+    vibrancy: GlassVibrancyPalette,
     targetWidth: Dp,
     contentAlpha: Float,
     nowMillis: Long
@@ -746,7 +977,7 @@ private fun MediumPillContent(
     ) {
         NotificationGlyphOrb(
             notification = notification,
-            accentColor = accentColor,
+            accentColor = vibrancy.accentForeground,
             orbSize = 32.dp
         )
         Spacer(modifier = Modifier.width(10.dp))
@@ -758,19 +989,19 @@ private fun MediumPillContent(
         ) {
             Text(
                 text = notification.title,
-                style = MaterialTheme.typography.labelLarge,
-                color = TextPrimary,
+                style = MaterialTheme.typography.labelLarge.copy(shadow = vibrancy.textShadow),
+                color = vibrancy.inkPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             if (notification.progressInfo != null) {
                 val info = notification.progressInfo
-                CompactProgressTrack(info = info, accentColor = accentColor)
+                CompactProgressTrack(info = info, vibrancy = vibrancy)
             } else {
                 Text(
                     text = notification.text,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
+                    style = MaterialTheme.typography.bodySmall.copy(shadow = vibrancy.textShadow),
+                    color = vibrancy.inkSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -790,9 +1021,10 @@ private fun MediumPillContent(
                 text = trailingBadge,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontFeatureSettings = "tnum",
-                    letterSpacing = if (notification.detectedOtpCode != null) 0.8.sp else 0.sp
+                    letterSpacing = if (notification.detectedOtpCode != null) 0.8.sp else 0.sp,
+                    shadow = vibrancy.textShadow
                 ),
-                color = if (notification.detectedOtpCode != null || liveSecondsText != null) accentColor else TextPrimary,
+                color = if (notification.detectedOtpCode != null || liveSecondsText != null) vibrancy.accentForeground else vibrancy.inkPrimary,
                 maxLines = 1,
                 modifier = Modifier.alpha(contentAlpha)
             )
@@ -802,7 +1034,7 @@ private fun MediumPillContent(
                     .alpha(contentAlpha)
                     .size(6.dp)
                     .clip(CircleShape)
-                    .background(accentColor)
+                    .background(vibrancy.accentForeground)
             )
         }
     }
@@ -811,7 +1043,7 @@ private fun MediumPillContent(
 @Composable
 private fun CompactProgressTrack(
     info: DropProgressInfo,
-    accentColor: Color
+    vibrancy: GlassVibrancyPalette
 ) {
     var phase by remember { mutableFloatStateOf(0f) }
     if (info.indeterminate) {
@@ -830,7 +1062,7 @@ private fun CompactProgressTrack(
             .height(3.dp)
     ) {
         drawRoundRect(
-            color = Color.White.copy(alpha = 0.14f),
+            color = vibrancy.trackBackground,
             size = size,
             cornerRadius = CornerRadius(size.height / 2f, size.height / 2f)
         )
@@ -841,7 +1073,7 @@ private fun CompactProgressTrack(
             val end = (x + w).coerceIn(0f, size.width)
             if (end > start) {
                 drawRoundRect(
-                    color = accentColor,
+                    color = vibrancy.accentForeground,
                     topLeft = Offset(start, 0f),
                     size = Size(end - start, size.height),
                     cornerRadius = CornerRadius(size.height / 2f, size.height / 2f)
@@ -851,7 +1083,7 @@ private fun CompactProgressTrack(
             val fill = size.width * info.fraction.coerceIn(0f, 1f)
             if (fill > 0f) {
                 drawRoundRect(
-                    color = accentColor,
+                    color = vibrancy.accentForeground,
                     size = Size(fill.coerceAtLeast(size.height / 2f), size.height),
                     cornerRadius = CornerRadius(size.height / 2f, size.height / 2f)
                 )
@@ -864,7 +1096,7 @@ private fun CompactProgressTrack(
 private fun BiggestGlassContent(
     notification: DropNotification,
     queuedCount: Int,
-    accentColor: Color,
+    vibrancy: GlassVibrancyPalette,
     isReplying: Boolean,
     replyText: String,
     replyError: String?,
@@ -911,7 +1143,7 @@ private fun BiggestGlassContent(
         ) {
             NotificationGlyphOrb(
                 notification = notification,
-                accentColor = accentColor,
+                accentColor = vibrancy.accentForeground,
                 orbSize = 36.dp
             )
             Spacer(modifier = Modifier.width(10.dp))
@@ -922,8 +1154,8 @@ private fun BiggestGlassContent(
                 ) {
                     Text(
                         text = notification.conversationTitle ?: notification.appName,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TextSecondary,
+                        style = MaterialTheme.typography.labelMedium.copy(shadow = vibrancy.textShadow),
+                        color = vibrancy.inkSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -931,23 +1163,29 @@ private fun BiggestGlassContent(
                     if (liveChronoText != null) {
                         Text(
                             text = liveChronoText,
-                            style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                            color = accentColor,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFeatureSettings = "tnum",
+                                shadow = vibrancy.textShadow
+                            ),
+                            color = vibrancy.accentForeground,
                             maxLines = 1
                         )
                     } else {
                         Text(
                             text = timeString,
-                            style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                            color = TextMuted,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFeatureSettings = "tnum",
+                                shadow = vibrancy.textShadow
+                            ),
+                            color = vibrancy.inkMuted,
                             maxLines = 1
                         )
                     }
                 }
                 Text(
                     text = notification.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary,
+                    style = MaterialTheme.typography.titleMedium.copy(shadow = vibrancy.textShadow),
+                    color = vibrancy.inkPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -963,13 +1201,15 @@ private fun BiggestGlassContent(
                 ) {
                     Text(
                         text = "+$queuedCount",
-                        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                        color = TextPrimary,
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontFeatureSettings = "tnum",
+                            shadow = vibrancy.textShadow
+                        ),
+                        color = vibrancy.inkPrimary,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.White.copy(alpha = 0.08f))
-                            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(vibrancy.pillSurface)
+                            .padding(horizontal = 9.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -983,7 +1223,7 @@ private fun BiggestGlassContent(
                     Icon(
                         imageVector = Icons.Rounded.Snooze,
                         contentDescription = "Snooze for 15 minutes",
-                        tint = TextMuted,
+                        tint = vibrancy.inkMuted,
                         modifier = Modifier.size(17.dp)
                     )
                 }
@@ -997,7 +1237,7 @@ private fun BiggestGlassContent(
                 Icon(
                     imageVector = Icons.Rounded.Close,
                     contentDescription = stringResource(R.string.action_dismiss),
-                    tint = TextSecondary,
+                    tint = vibrancy.inkSecondary,
                     modifier = Modifier.size(17.dp)
                 )
             }
@@ -1020,8 +1260,8 @@ private fun BiggestGlassContent(
                         notification.messageLines.takeLast(2).forEach { line ->
                             Text(
                                 text = if (line.sender.isNotBlank()) "${line.sender}: ${line.text}" else line.text,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary,
+                                style = MaterialTheme.typography.bodySmall.copy(shadow = vibrancy.textShadow),
+                                color = vibrancy.inkSecondary,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1029,8 +1269,8 @@ private fun BiggestGlassContent(
                     } else {
                         Text(
                             text = notification.text,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary,
+                            style = MaterialTheme.typography.bodyMedium.copy(shadow = vibrancy.textShadow),
+                            color = vibrancy.inkSecondary,
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -1048,7 +1288,7 @@ private fun BiggestGlassContent(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(10.dp))
+                            .border(1.dp, vibrancy.pillBorder, RoundedCornerShape(10.dp))
                     )
                 }
             }
@@ -1058,7 +1298,7 @@ private fun BiggestGlassContent(
         if (!isReplying && notification.progressInfo != null) {
             ProgressTracker(
                 progressInfo = notification.progressInfo,
-                accentColor = accentColor,
+                vibrancy = vibrancy,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 46.dp, top = 2.dp)
@@ -1072,8 +1312,8 @@ private fun BiggestGlassContent(
                     .fillMaxWidth()
                     .padding(start = 46.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.08f))
-                    .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
+                    .background(vibrancy.pillSurface)
+                    .border(1.dp, vibrancy.pillBorder, RoundedCornerShape(12.dp))
                     .clickable { onCopyOtp(notification.detectedOtpCode) }
                     .padding(horizontal = 12.dp, vertical = 9.dp)
                     .testTag("drop_otp_banner"),
@@ -1087,16 +1327,17 @@ private fun BiggestGlassContent(
                     Icon(
                         imageVector = Icons.Rounded.Key,
                         contentDescription = null,
-                        tint = accentColor,
+                        tint = vibrancy.accentForeground,
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
                         text = notification.detectedOtpCode,
                         style = MaterialTheme.typography.titleMedium.copy(
                             letterSpacing = 1.6.sp,
-                            fontFeatureSettings = "tnum"
+                            fontFeatureSettings = "tnum",
+                            shadow = vibrancy.textShadow
                         ),
-                        color = TextPrimary
+                        color = vibrancy.inkPrimary
                     )
                 }
                 Row(
@@ -1106,13 +1347,13 @@ private fun BiggestGlassContent(
                     Icon(
                         imageVector = if (copiedOtpFeedback) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
                         contentDescription = "Copy code",
-                        tint = if (copiedOtpFeedback) accentColor else TextSecondary,
+                        tint = if (copiedOtpFeedback) vibrancy.accentForeground else vibrancy.inkSecondary,
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
                         text = if (copiedOtpFeedback) "Copied" else "Copy",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (copiedOtpFeedback) accentColor else TextSecondary
+                        style = MaterialTheme.typography.labelSmall.copy(shadow = vibrancy.textShadow),
+                        color = if (copiedOtpFeedback) vibrancy.accentForeground else vibrancy.inkSecondary
                     )
                 }
             }
@@ -1122,7 +1363,7 @@ private fun BiggestGlassContent(
         AnimatedVisibility(visible = isReplying) {
             LiquidReplyBox(
                 replyText = replyText,
-                accentColor = accentColor,
+                vibrancy = vibrancy,
                 errorText = replyError,
                 onReplyTextChange = onReplyTextChange,
                 onSend = onSendReply,
@@ -1135,7 +1376,7 @@ private fun BiggestGlassContent(
             if (notification.category == DropCategory.MEDIA) {
                 MediaTransportBar(
                     isPlaying = notification.isMediaPlaying,
-                    accentColor = accentColor,
+                    vibrancy = vibrancy,
                     onMediaControl = onMediaControl,
                     onOpen = onOpen,
                     showOpen = notification.isLiveSystem,
@@ -1157,7 +1398,8 @@ private fun BiggestGlassContent(
                             GlassActionPill(
                                 label = action.title.ifBlank { "Reply" },
                                 icon = Icons.AutoMirrored.Rounded.Reply,
-                                accentColor = accentColor,
+                                accentColor = vibrancy.accentForeground,
+                                vibrancy = vibrancy,
                                 onClick = onToggleReply,
                                 testTag = "drop_reply_pill"
                             )
@@ -1167,9 +1409,10 @@ private fun BiggestGlassContent(
                                 icon = semanticActionIcon(action.semantic),
                                 accentColor = when (action.semantic) {
                                     ActionSemantic.DECLINE, ActionSemantic.DELETE -> AccentRose
-                                    ActionSemantic.ANSWER, ActionSemantic.MARK_READ -> accentColor
-                                    else -> TextSecondary
+                                    ActionSemantic.ANSWER, ActionSemantic.MARK_READ -> vibrancy.accentForeground
+                                    else -> vibrancy.inkSecondary
                                 },
+                                vibrancy = vibrancy,
                                 onClick = { onTriggerAction(action.index) },
                                 testTag = "drop_action_pill_${action.index}"
                             )
@@ -1180,7 +1423,8 @@ private fun BiggestGlassContent(
                         GlassActionPill(
                             label = notification.replyLabel ?: "Reply",
                             icon = Icons.AutoMirrored.Rounded.Reply,
-                            accentColor = accentColor,
+                            accentColor = vibrancy.accentForeground,
+                            vibrancy = vibrancy,
                             onClick = onToggleReply,
                             testTag = "drop_reply_pill"
                         )
@@ -1192,7 +1436,8 @@ private fun BiggestGlassContent(
                         GlassActionPill(
                             label = if (copiedOtpFeedback) "Copied" else "Copy code",
                             icon = if (copiedOtpFeedback) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
-                            accentColor = AccentAmber,
+                            accentColor = if (vibrancy.isLightGlass) Color(0xFFB06000) else AccentAmber,
+                            vibrancy = vibrancy,
                             onClick = { onCopyOtp(notification.detectedOtpCode) },
                             testTag = "drop_copy_otp_pill"
                         )
@@ -1202,7 +1447,8 @@ private fun BiggestGlassContent(
                         GlassActionPill(
                             label = stringResource(R.string.action_open),
                             icon = Icons.AutoMirrored.Rounded.OpenInNew,
-                            accentColor = TextSecondary,
+                            accentColor = vibrancy.inkSecondary,
+                            vibrancy = vibrancy,
                             onClick = onOpen,
                             testTag = "drop_open_pill"
                         )
@@ -1216,7 +1462,7 @@ private fun BiggestGlassContent(
 @Composable
 private fun ProgressTracker(
     progressInfo: DropProgressInfo,
-    accentColor: Color,
+    vibrancy: GlassVibrancyPalette,
     modifier: Modifier = Modifier
 ) {
     val targetFraction = progressInfo.fraction.coerceIn(0f, 1f)
@@ -1264,8 +1510,8 @@ private fun ProgressTracker(
         ) {
             Text(
                 text = statusText,
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                style = MaterialTheme.typography.bodySmall.copy(shadow = vibrancy.textShadow),
+                color = vibrancy.inkSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -1274,8 +1520,11 @@ private fun ProgressTracker(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = if (progressInfo.indeterminate) "•••" else "$percent%",
-                    style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
-                    color = TextPrimary
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontFeatureSettings = "tnum",
+                        shadow = vibrancy.textShadow
+                    ),
+                    color = vibrancy.inkPrimary
                 )
             }
         }
@@ -1287,7 +1536,7 @@ private fun ProgressTracker(
         ) {
             val trackHeight = size.height
             drawRoundRect(
-                color = Color.White.copy(alpha = 0.14f),
+                color = vibrancy.trackBackground,
                 size = size,
                 cornerRadius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
             )
@@ -1299,7 +1548,7 @@ private fun ProgressTracker(
                 if (clampedEnd > clampedStart) {
                     drawRoundRect(
                         brush = Brush.horizontalGradient(
-                            colors = listOf(Color.Transparent, accentColor, Color.Transparent),
+                            colors = listOf(Color.Transparent, vibrancy.accentForeground, Color.Transparent),
                             startX = startX,
                             endX = startX + segmentWidth
                         ),
@@ -1312,7 +1561,7 @@ private fun ProgressTracker(
                 val fillWidth = size.width * animatedFraction
                 if (fillWidth > 0f) {
                     drawRoundRect(
-                        color = accentColor,
+                        color = vibrancy.accentForeground,
                         size = Size(fillWidth.coerceAtLeast(trackHeight / 2f), trackHeight),
                         cornerRadius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
                     )
@@ -1331,11 +1580,11 @@ private fun ProgressTracker(
                         (!progressInfo.indeterminate && targetFraction >= (idx + 0.5f) / progressInfo.milestoneLabels.size)
                     Text(
                         text = label,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.copy(shadow = vibrancy.textShadow),
                         color = when {
-                            isCurrent -> accentColor
-                            isDone -> TextSecondary
-                            else -> TextMuted
+                            isCurrent -> vibrancy.accentForeground
+                            isDone -> vibrancy.inkSecondary
+                            else -> vibrancy.inkMuted
                         },
                         fontWeight = if (isCurrent) FontWeight.Medium else FontWeight.Normal,
                         textAlign = when (idx) {
@@ -1356,7 +1605,7 @@ private fun ProgressTracker(
 @Composable
 private fun MediaTransportBar(
     isPlaying: Boolean,
-    accentColor: Color,
+    vibrancy: GlassVibrancyPalette,
     onMediaControl: (MediaCommandAction) -> Unit,
     onOpen: () -> Unit,
     showOpen: Boolean,
@@ -1380,7 +1629,7 @@ private fun MediaTransportBar(
                 Icon(
                     imageVector = Icons.Rounded.SkipPrevious,
                     contentDescription = "Previous",
-                    tint = TextPrimary,
+                    tint = vibrancy.inkPrimary,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -1388,7 +1637,7 @@ private fun MediaTransportBar(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(accentColor.copy(alpha = 0.22f))
+                    .background(vibrancy.accentForeground.copy(alpha = if (vibrancy.isLightGlass) 0.16f else 0.22f))
                     .clickable(onClick = { onMediaControl(MediaCommandAction.PLAY_PAUSE) })
                     .testTag("media_play_pause_button"),
                 contentAlignment = Alignment.Center
@@ -1396,7 +1645,7 @@ private fun MediaTransportBar(
                 Icon(
                     imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                     contentDescription = if (isPlaying) "Pause" else "Play",
-                    tint = accentColor,
+                    tint = vibrancy.accentForeground,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -1409,7 +1658,7 @@ private fun MediaTransportBar(
                 Icon(
                     imageVector = Icons.Rounded.SkipNext,
                     contentDescription = "Next",
-                    tint = TextPrimary,
+                    tint = vibrancy.inkPrimary,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -1419,7 +1668,8 @@ private fun MediaTransportBar(
             GlassActionPill(
                 label = stringResource(R.string.action_open),
                 icon = Icons.AutoMirrored.Rounded.OpenInNew,
-                accentColor = TextSecondary,
+                accentColor = vibrancy.inkSecondary,
+                vibrancy = vibrancy,
                 onClick = onOpen,
                 testTag = "drop_open_pill"
             )
@@ -1430,7 +1680,7 @@ private fun MediaTransportBar(
 @Composable
 private fun LiquidReplyBox(
     replyText: String,
-    accentColor: Color,
+    vibrancy: GlassVibrancyPalette,
     errorText: String?,
     onReplyTextChange: (String) -> Unit,
     onSend: (String) -> Unit,
@@ -1442,7 +1692,6 @@ private fun LiquidReplyBox(
     val quickReplies = remember { listOf("On my way", "Got it", "In 5 min", "Thanks") }
 
     LaunchedEffect(Unit) {
-        // Give WindowManager one brief frame to commit FLAG_NOT_FOCUSABLE removal before focusing input
         delay(65L)
         runCatching { focusRequester.requestFocus() }
         keyboard?.show()
@@ -1463,17 +1712,16 @@ private fun LiquidReplyBox(
             quickReplies.forEach { preset ->
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(Color.White.copy(alpha = 0.08f))
-                        .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(9.dp))
+                        .clip(RoundedCornerShape(50))
+                        .background(vibrancy.pillSurface)
                         .clickable { onSend(preset) }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .padding(horizontal = 12.dp, vertical = 7.dp)
                         .testTag("quick_reply_${preset.lowercase().replace(" ", "_")}")
                 ) {
                     Text(
                         text = preset,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextPrimary
+                        style = MaterialTheme.typography.labelSmall.copy(shadow = vibrancy.textShadow),
+                        color = vibrancy.inkPrimary
                     )
                 }
             }
@@ -1483,18 +1731,18 @@ private fun LiquidReplyBox(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color.White.copy(alpha = 0.09f))
-                .border(1.dp, accentColor.copy(alpha = 0.42f), RoundedCornerShape(14.dp))
-                .padding(start = 14.dp, end = 4.dp),
+                .clip(RoundedCornerShape(50))
+                .background(vibrancy.pillSurface)
+                .border(1.dp, vibrancy.pillBorder, RoundedCornerShape(50))
+                .padding(start = 16.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             BasicTextField(
                 value = replyText,
                 onValueChange = onReplyTextChange,
                 singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(color = TextPrimary),
-                cursorBrush = SolidColor(accentColor),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = vibrancy.inkPrimary),
+                cursorBrush = SolidColor(vibrancy.accentForeground),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
                     imeAction = ImeAction.Send
@@ -1514,7 +1762,7 @@ private fun LiquidReplyBox(
                         Text(
                             text = stringResource(R.string.reply_hint),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextMuted
+                            color = vibrancy.inkMuted
                         )
                     }
                     inner()
@@ -1529,7 +1777,7 @@ private fun LiquidReplyBox(
                 Icon(
                     imageVector = Icons.Rounded.Close,
                     contentDescription = "Cancel reply",
-                    tint = TextMuted,
+                    tint = vibrancy.inkMuted,
                     modifier = Modifier.size(16.dp)
                 )
             }
@@ -1537,7 +1785,7 @@ private fun LiquidReplyBox(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(if (canSend) accentColor else Color.White.copy(alpha = 0.08f))
+                    .background(if (canSend) vibrancy.accentForeground else vibrancy.pillSurface)
                     .clickable(enabled = canSend) { onSend(replyText.trim()) }
                     .testTag("drop_send_reply_button"),
                 contentAlignment = Alignment.Center
@@ -1545,7 +1793,7 @@ private fun LiquidReplyBox(
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.Send,
                     contentDescription = stringResource(R.string.action_send),
-                    tint = if (canSend) CanvasBlack else TextMuted,
+                    tint = if (canSend) vibrancy.sendIconTint else vibrancy.inkMuted,
                     modifier = Modifier.size(17.dp)
                 )
             }
@@ -1598,13 +1846,14 @@ private fun GlassActionPill(
     label: String,
     icon: ImageVector?,
     accentColor: Color,
+    vibrancy: GlassVibrancyPalette,
     onClick: () -> Unit,
     testTag: String
 ) {
     Box(
         modifier = Modifier
             .height(40.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(50))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(color = accentColor),
@@ -1615,13 +1864,12 @@ private fun GlassActionPill(
     ) {
         Row(
             modifier = Modifier
-                .height(32.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(Color.White.copy(alpha = 0.08f))
-                .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(9.dp))
-                .padding(horizontal = 10.dp),
+                .height(34.dp)
+                .clip(RoundedCornerShape(50))
+                .background(vibrancy.pillSurface)
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             if (icon != null) {
                 Icon(
@@ -1633,8 +1881,8 @@ private fun GlassActionPill(
             }
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = TextPrimary,
+                style = MaterialTheme.typography.labelSmall.copy(shadow = vibrancy.textShadow),
+                color = vibrancy.inkPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

@@ -2,9 +2,6 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,13 +13,14 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -35,14 +33,11 @@ import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -60,15 +55,11 @@ import com.example.model.DropNotification
 import com.example.model.GlassOpticsConfig
 import com.example.ui.StudioUiState
 import com.example.ui.components.LiquidGlassPanel
+import com.example.ui.components.PixelGroupPosition
+import com.example.ui.components.PixelGroupedCard
+import com.example.ui.components.PixelSectionHeader
+import com.example.ui.components.PixelSwitchRow
 import com.example.ui.components.StatusPillBadge
-import com.example.ui.theme.AccentAmber
-import com.example.ui.theme.AccentSage
-import com.example.ui.theme.CanvasBlack
-import com.example.ui.theme.FrostPrimary
-import com.example.ui.theme.SurfaceOne
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.TextSecondary
 
 @Composable
 fun BridgeScreen(
@@ -107,51 +98,50 @@ fun BridgeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = stringResource(R.string.bridge_title),
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = TextPrimary
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
                         text = stringResource(R.string.bridge_subtitle),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            // Permissions Bridge Card
+            // Permissions Grouped Card Stack
             item {
-                LiquidGlassPanel(
-                    accentGlow = if (uiState.isNotificationAccessGranted && uiState.isOverlayPermissionGranted) {
-                        AccentSage
-                    } else {
-                        AccentAmber
-                    }
-                ) {
-                    PermissionRow(
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    PixelSectionHeader(
+                        title = "Permissions",
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    PermissionGroupRow(
+                        position = PixelGroupPosition.FIRST,
                         title = stringResource(R.string.perm_notification_access),
                         subtitle = if (uiState.isListenerConnected) {
-                            "Listener bound to OS notification stream"
+                            "Connected and listening for incoming notifications"
                         } else {
-                            "Required to read incoming alerts, delivery progress & inline replies"
+                            "Needed to show messages, deliveries, media, and quick replies"
                         },
                         icon = Icons.Rounded.Notifications,
                         granted = uiState.isNotificationAccessGranted,
                         onClick = onOpenNotificationAccess,
                         testTag = "perm_notification_access_row"
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    PermissionRow(
+                    PermissionGroupRow(
+                        position = PixelGroupPosition.MIDDLE,
                         title = stringResource(R.string.perm_overlay_window),
-                        subtitle = "Draws Liquid Glass drop over other apps below camera",
+                        subtitle = "Allows floating bubbles over other apps",
                         icon = Icons.Rounded.Layers,
                         granted = uiState.isOverlayPermissionGranted,
                         onClick = onOpenOverlaySettings,
                         testTag = "perm_overlay_window_row"
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    PermissionRow(
+                    PermissionGroupRow(
+                        position = PixelGroupPosition.LAST,
                         title = stringResource(R.string.perm_post_notifications),
-                        subtitle = "Allows posting live test alerts on Android 13+",
+                        subtitle = "Allows sending test notifications on Android 13+",
                         icon = Icons.Rounded.NotificationsActive,
                         granted = uiState.isPostNotificationsGranted,
                         onClick = onRequestPostNotifications,
@@ -160,281 +150,248 @@ fun BridgeScreen(
                 }
             }
 
-            // Master Switches
+            // Behavior Switches Grouped Card Stack
             item {
-                LiquidGlassPanel {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "System Popup Overlay",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Pop Liquid Glass water drop below selfie camera on any screen",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextMuted
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Switch(
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    PixelSectionHeader(
+                        title = "Behavior",
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    PixelGroupedCard(position = PixelGroupPosition.FIRST) {
+                        PixelSwitchRow(
+                            title = "Bubble overlay",
+                            subtitle = "Show floating notifications below your front camera on any screen",
                             checked = uiState.config.enableSystemOverlay,
                             onCheckedChange = { checked ->
                                 onUpdateConfig { it.copy(enableSystemOverlay = checked) }
                             },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = CanvasBlack,
-                                checkedTrackColor = FrostPrimary
-                            ),
-                            modifier = Modifier.testTag("switch_enable_overlay")
+                            testTag = "switch_enable_overlay"
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Hide Normal System Banners",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Suppress duplicate stock OS heads-up banners once DropGlass intercepts them",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextMuted
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Switch(
+                    PixelGroupedCard(position = PixelGroupPosition.MIDDLE) {
+                        PixelSwitchRow(
+                            title = "Hide duplicate banners",
+                            subtitle = "Replace standard Android heads-up popups once DropGlass handles them",
                             checked = uiState.config.replaceSystemHeadsUp,
                             onCheckedChange = { checked ->
                                 onUpdateConfig { it.copy(replaceSystemHeadsUp = checked) }
                             },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = CanvasBlack,
-                                checkedTrackColor = FrostPrimary
-                            ),
-                            modifier = Modifier.testTag("switch_replace_system_heads_up")
+                            testTag = "switch_replace_system_heads_up"
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Ignore Silent Ongoing",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Skip background tasks (keeps calls, Play Store, timers, media & deliveries active)",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextMuted
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Switch(
+                    PixelGroupedCard(position = PixelGroupPosition.LAST) {
+                        PixelSwitchRow(
+                            title = "Skip silent background apps",
+                            subtitle = "Ignore low-priority status items while keeping calls, downloads, timers, and media",
                             checked = uiState.config.suppressOngoing,
                             onCheckedChange = { checked ->
                                 onUpdateConfig { it.copy(suppressOngoing = checked) }
                             },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = CanvasBlack,
-                                checkedTrackColor = FrostPrimary
-                            ),
-                            modifier = Modifier.testTag("switch_suppress_ongoing")
+                            testTag = "switch_suppress_ongoing"
                         )
                     }
                 }
             }
 
-            // OPPO CPH2773 / ColorOS Native Guide + Quick System Settings Shortcuts
+            // Device Setup Tips & Quick Shortcuts
             item {
-                LiquidGlassPanel(accentGlow = FrostPrimary) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.PhoneAndroid,
-                            contentDescription = null,
-                            tint = FrostPrimary,
-                            modifier = Modifier.size(20.dp)
-                        )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    PixelSectionHeader(title = "Device shortcuts")
+                    LiquidGlassPanel {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.PhoneAndroid,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Text(
+                                text = stringResource(R.string.coloros_guide_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = stringResource(R.string.coloros_guide_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = TextPrimary
+                            text = stringResource(R.string.coloros_guide_step1),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = stringResource(R.string.coloros_guide_step1),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.coloros_guide_step2),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.coloros_guide_step3),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onOpenBatterySettings,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .testTag("bridge_battery_settings_button")
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = stringResource(R.string.coloros_guide_step2),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = stringResource(R.string.coloros_guide_step3),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.BatterySaver,
-                                contentDescription = null,
-                                tint = FrostPrimary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Battery",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = TextPrimary
-                            )
+                            FilledTonalButton(
+                                onClick = onOpenBatterySettings,
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .testTag("bridge_battery_settings_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.BatterySaver,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "Battery", style = MaterialTheme.typography.labelLarge)
+                            }
+                            FilledTonalButton(
+                                onClick = onOpenAppNotifications,
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .testTag("bridge_app_notif_settings_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Settings,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "Channels", style = MaterialTheme.typography.labelLarge)
+                            }
                         }
-                        OutlinedButton(
-                            onClick = onOpenAppNotifications,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .testTag("bridge_app_notif_settings_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Settings,
-                                contentDescription = null,
-                                tint = FrostPrimary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Channels",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = TextPrimary
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onOpenAppInfo,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .testTag("bridge_app_info_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Settings,
-                                contentDescription = null,
-                                tint = FrostPrimary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = stringResource(R.string.btn_app_info),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = TextPrimary
-                            )
-                        }
-                        OutlinedButton(
-                            onClick = onReconnectListener,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp)
-                                .testTag("bridge_reconnect_listener_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.NotificationsActive,
-                                contentDescription = null,
-                                tint = if (uiState.isListenerConnected) AccentSage else AccentAmber,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = stringResource(R.string.btn_reconnect_listener),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = TextPrimary
-                            )
-                        }
-                    }
-                    if (!uiState.lastOverlayError.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = "Overlay warning: ${uiState.lastOverlayError}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AccentAmber
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            FilledTonalButton(
+                                onClick = onOpenAppInfo,
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .testTag("bridge_app_info_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Settings,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = stringResource(R.string.btn_app_info),
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
+                            FilledTonalButton(
+                                onClick = onReconnectListener,
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
+                                    .testTag("bridge_reconnect_listener_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.NotificationsActive,
+                                    contentDescription = null,
+                                    tint = if (uiState.isListenerConnected) {
+                                        MaterialTheme.colorScheme.tertiary
+                                    } else {
+                                        MaterialTheme.colorScheme.primary
+                                    },
+                                    modifier = Modifier.size(17.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = stringResource(R.string.btn_reconnect_listener),
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
+                        }
+                        if (!uiState.lastOverlayError.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Note: ${uiState.lastOverlayError}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
             }
 
-            // Captured Real Notifications History
+            // Recent Notifications History
             item {
-                Text(
-                    text = "Captured System Alerts",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary
-                )
+                PixelSectionHeader(title = "Recent notifications")
             }
 
             if (uiState.recentDrops.isEmpty()) {
                 item {
                     LiquidGlassPanel {
-                        Text(
-                            text = "No live system notifications intercepted yet.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Once Notification Access is granted, incoming messages, Play Store downloads, deliveries, media, and OTPs appear here for instant replay or per-app filtering.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Notifications,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "No notifications captured yet",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Incoming alerts will appear here so you can replay or mute apps anytime.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             } else {
-                items(uiState.recentDrops, key = { it.id }) { drop ->
+                itemsIndexed(uiState.recentDrops, key = { _, item -> item.id }) { index, drop ->
+                    val position = when {
+                        uiState.recentDrops.size == 1 -> PixelGroupPosition.ONLY
+                        index == 0 -> PixelGroupPosition.FIRST
+                        index == uiState.recentDrops.lastIndex -> PixelGroupPosition.LAST
+                        else -> PixelGroupPosition.MIDDLE
+                    }
                     val isMuted = drop.packageName in uiState.config.blockedPackages
                     CapturedNotificationRow(
+                        position = position,
                         drop = drop,
                         isMuted = isMuted,
                         onReplay = { onReplayDrop(drop) },
@@ -447,7 +404,8 @@ fun BridgeScreen(
 }
 
 @Composable
-private fun PermissionRow(
+private fun PermissionGroupRow(
+    position: PixelGroupPosition,
     title: String,
     subtitle: String,
     icon: ImageVector,
@@ -455,74 +413,79 @@ private fun PermissionRow(
     onClick: () -> Unit,
     testTag: String
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.045f))
-            .border(
-                width = 1.dp,
-                color = if (granted) AccentSage.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.10f),
-                shape = RoundedCornerShape(16.dp)
-            )
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = FrostPrimary),
-                onClick = onClick
-            )
-            .padding(14.dp)
-            .testTag(testTag),
-        verticalAlignment = Alignment.CenterVertically
+    val iconContainer = if (granted) {
+        MaterialTheme.colorScheme.tertiaryContainer
+    } else {
+        MaterialTheme.colorScheme.primaryContainer
+    }
+    val iconTint = if (granted) {
+        MaterialTheme.colorScheme.onTertiaryContainer
+    } else {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    }
+
+    PixelGroupedCard(
+        position = position,
+        onClick = onClick,
+        modifier = Modifier.testTag(testTag)
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background((if (granted) AccentSage else FrostPrimary).copy(alpha = 0.16f)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .heightIn(min = 48.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = if (granted) AccentSage else FrostPrimary,
-                modifier = Modifier.size(20.dp)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(iconContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = iconTint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            StatusPillBadge(
+                text = if (granted) stringResource(R.string.status_active) else stringResource(R.string.status_required),
+                isActive = granted,
+                activeColor = MaterialTheme.colorScheme.tertiary
             )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextMuted,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        StatusPillBadge(
-            text = if (granted) stringResource(R.string.status_active) else stringResource(R.string.status_required),
-            isActive = granted,
-            activeColor = AccentSage
-        )
-        if (!granted) {
-            Spacer(modifier = Modifier.width(4.dp))
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                contentDescription = null,
-                tint = TextSecondary,
-                modifier = Modifier.size(16.dp)
-            )
+            if (!granted) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun CapturedNotificationRow(
+    position: PixelGroupPosition,
     drop: DropNotification,
     isMuted: Boolean,
     onReplay: () -> Unit,
@@ -531,80 +494,81 @@ private fun CapturedNotificationRow(
     val bmp = remember(drop.id, drop.appIconBitmap) {
         drop.appIconBitmap?.asImageBitmap()
     }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(SurfaceOne)
-            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(18.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(CircleShape)
-                .background(Color(drop.accentColorArgb).copy(alpha = 0.22f)),
-            contentAlignment = Alignment.Center
+    PixelGroupedCard(position = position) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (bmp != null) {
-                Image(
-                    bitmap = bmp,
-                    contentDescription = drop.appName,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(4.dp)
-                        .clip(CircleShape)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color(drop.accentColorArgb).copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (bmp != null) {
+                    Image(
+                        bitmap = bmp,
+                        contentDescription = drop.appName,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(4.dp)
+                            .clip(CircleShape)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Notifications,
+                        contentDescription = drop.appName,
+                        tint = Color(drop.accentColorArgb),
+                        modifier = Modifier.size(19.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${drop.appName} · ${drop.title}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-            } else {
-                Icon(
-                    imageVector = Icons.Rounded.Notifications,
-                    contentDescription = drop.appName,
-                    tint = Color(drop.accentColorArgb),
-                    modifier = Modifier.size(18.dp)
+                Text(
+                    text = drop.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "${drop.appName} · ${drop.title}",
-                style = MaterialTheme.typography.labelLarge,
-                color = TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = drop.text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        IconButton(
-            onClick = onReplay,
-            modifier = Modifier
-                .size(48.dp)
-                .testTag("replay_drop_${drop.packageName}")
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.PlayArrow,
-                contentDescription = "Replay droplet",
-                tint = FrostPrimary
-            )
-        }
-        IconButton(
-            onClick = onToggleMute,
-            modifier = Modifier
-                .size(48.dp)
-                .testTag("mute_app_${drop.packageName}")
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.VisibilityOff,
-                contentDescription = if (isMuted) "Unmute app" else "Mute app",
-                tint = if (isMuted) AccentAmber else TextMuted
-            )
+            IconButton(
+                onClick = onReplay,
+                modifier = Modifier
+                    .size(48.dp)
+                    .testTag("replay_drop_${drop.packageName}")
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.PlayArrow,
+                    contentDescription = "Replay bubble",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            IconButton(
+                onClick = onToggleMute,
+                modifier = Modifier
+                    .size(48.dp)
+                    .testTag("mute_app_${drop.packageName}")
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.VisibilityOff,
+                    contentDescription = if (isMuted) "Unmute app" else "Mute app",
+                    tint = if (isMuted) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
         }
     }
 }

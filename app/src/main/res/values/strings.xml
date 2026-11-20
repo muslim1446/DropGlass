@@ -6,31 +6,31 @@
     <string name="test_channel_name">DropGlass Alerts</string>
     <string name="test_channel_desc">Test alerts for the DropGlass overlay.</string>
 
-    <string name="tab_stage">Stage</string>
-    <string name="tab_optics">Optics</string>
-    <string name="tab_bridge">Bridge</string>
+    <string name="tab_stage">Preview</string>
+    <string name="tab_optics">Style</string>
+    <string name="tab_bridge">Setup</string>
 
-    <string name="hero_subtitle">OPPO CPH2773 · Camera-aware overlay</string>
-    <string name="stage_hint">Pick a preview or send a real system alert to see it appear beneath the camera cutout.</string>
+    <string name="hero_subtitle">Camera-aware notification bubble</string>
+    <string name="stage_hint">Tap a sample below or send a live system notification to see it flow out from your front camera.</string>
 
     <string name="action_reply">Reply</string>
     <string name="action_dismiss">Dismiss</string>
     <string name="action_open">Open</string>
     <string name="action_send">Send</string>
-    <string name="reply_hint">Quick reply…</string>
+    <string name="reply_hint">Write a reply…</string>
 
-    <string name="bridge_title">System Notification Bridge</string>
-    <string name="bridge_subtitle">Grant notification access and display-over-apps so DropGlass can replace heads-up banners with its own overlay.</string>
+    <string name="bridge_title">Notification Setup</string>
+    <string name="bridge_subtitle">Allow DropGlass to read incoming alerts and display interactive bubbles over other apps.</string>
     <string name="perm_notification_access">Notification Access</string>
-    <string name="perm_overlay_window">Display Over Apps</string>
-    <string name="perm_post_notifications">Alert Permission</string>
-    <string name="status_active">Active</string>
-    <string name="status_required">Grant</string>
+    <string name="perm_overlay_window">Display Over Other Apps</string>
+    <string name="perm_post_notifications">Notifications</string>
+    <string name="status_active">On</string>
+    <string name="status_required">Turn on</string>
 
-    <string name="coloros_guide_title">ColorOS CPH2773 Setup</string>
-    <string name="coloros_guide_step1">1. Enable Notification Access &amp; Display Over Apps above so DropGlass intercepts incoming alerts in real time.</string>
-    <string name="coloros_guide_step2">2. To hide ColorOS\'s duplicate stock banner, open Settings → Notifications &amp; Status Bar → App notifications and turn off Banner for apps you want in DropGlass.</string>
-    <string name="coloros_guide_step3">3. In Battery → App management, set DropGlass to Allow background activity &amp; Auto-launch so the overlay stays alive between notifications.</string>
+    <string name="coloros_guide_title">OPPO &amp; ColorOS Tips</string>
+    <string name="coloros_guide_step1">1. Turn on Notification Access and Display Over Other Apps above so alerts appear automatically.</string>
+    <string name="coloros_guide_step2">2. To avoid duplicate banners on ColorOS, open Settings → Notifications → App notifications and turn off Banner for apps you prefer in DropGlass.</string>
+    <string name="coloros_guide_step3">3. In Battery settings, allow background activity and auto-launch so notifications always pop instantly.</string>
     <string name="btn_app_info">App Info</string>
-    <string name="btn_reconnect_listener">Reconnect Bridge</string>
+    <string name="btn_reconnect_listener">Refresh Service</string>
 </resources>

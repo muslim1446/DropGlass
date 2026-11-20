@@ -38,6 +38,7 @@ class OpticsPreferencesRepository(private val context: Context) {
         val SUPPRESS_ONGOING = booleanPreferencesKey("suppress_ongoing")
         val AVOID_BANNERS = booleanPreferencesKey("avoid_system_banners")
         val DYNAMIC_COLOR = booleanPreferencesKey("use_system_dynamic_color")
+        val ADAPTIVE_CONTRAST_BLUR = booleanPreferencesKey("adaptive_contrast_blur")
         val BLOCKED_PACKAGES = stringSetPreferencesKey("blocked_packages")
     }
 
@@ -53,16 +54,17 @@ class OpticsPreferencesRepository(private val context: Context) {
             dropGapDp = prefs[Keys.DROP_GAP] ?: 7f,
             glassStyle = GlassStyle.entries.firstOrNull { it.name == styleName }
                 ?: GlassStyle.CRYSTAL_CLEAR,
-            refractionIntensity = prefs[Keys.REFRACTION] ?: 0.88f,
+            refractionIntensity = prefs[Keys.REFRACTION] ?: 0.92f,
             blurRadiusDp = prefs[Keys.BLUR_RADIUS] ?: 28f,
-            specularRimIntensity = prefs[Keys.SPECULAR_RIM] ?: 0.92f,
+            specularRimIntensity = prefs[Keys.SPECULAR_RIM] ?: 0.95f,
             viscositySpeed = prefs[Keys.VISCOSITY_SPEED] ?: 1.0f,
-            autoDismissSeconds = prefs[Keys.AUTO_DISMISS_SEC] ?: 4.5f,
+            autoDismissSeconds = prefs[Keys.AUTO_DISMISS_SEC] ?: 5.0f,
             enableSystemOverlay = prefs[Keys.ENABLE_OVERLAY] ?: true,
             replaceSystemHeadsUp = prefs[Keys.REPLACE_HEADS_UP] ?: true,
             suppressOngoing = prefs[Keys.SUPPRESS_ONGOING] ?: true,
             avoidSystemBanners = prefs[Keys.AVOID_BANNERS] ?: true,
-            useSystemDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: false,
+            useSystemDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
+            adaptiveContrastBlur = prefs[Keys.ADAPTIVE_CONTRAST_BLUR] ?: true,
             blockedPackages = prefs[Keys.BLOCKED_PACKAGES] ?: emptySet()
         )
     }
@@ -78,16 +80,17 @@ class OpticsPreferencesRepository(private val context: Context) {
                 dropGapDp = prefs[Keys.DROP_GAP] ?: 7f,
                 glassStyle = GlassStyle.entries.firstOrNull { it.name == prefs[Keys.GLASS_STYLE] }
                     ?: GlassStyle.CRYSTAL_CLEAR,
-                refractionIntensity = prefs[Keys.REFRACTION] ?: 0.88f,
+                refractionIntensity = prefs[Keys.REFRACTION] ?: 0.92f,
                 blurRadiusDp = prefs[Keys.BLUR_RADIUS] ?: 28f,
-                specularRimIntensity = prefs[Keys.SPECULAR_RIM] ?: 0.92f,
+                specularRimIntensity = prefs[Keys.SPECULAR_RIM] ?: 0.95f,
                 viscositySpeed = prefs[Keys.VISCOSITY_SPEED] ?: 1.0f,
-                autoDismissSeconds = prefs[Keys.AUTO_DISMISS_SEC] ?: 4.5f,
+                autoDismissSeconds = prefs[Keys.AUTO_DISMISS_SEC] ?: 5.0f,
                 enableSystemOverlay = prefs[Keys.ENABLE_OVERLAY] ?: true,
                 replaceSystemHeadsUp = prefs[Keys.REPLACE_HEADS_UP] ?: true,
                 suppressOngoing = prefs[Keys.SUPPRESS_ONGOING] ?: true,
                 avoidSystemBanners = prefs[Keys.AVOID_BANNERS] ?: true,
-                useSystemDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: false,
+                useSystemDynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: true,
+                adaptiveContrastBlur = prefs[Keys.ADAPTIVE_CONTRAST_BLUR] ?: true,
                 blockedPackages = prefs[Keys.BLOCKED_PACKAGES] ?: emptySet()
             )
             val updated = transform(current)
@@ -107,6 +110,7 @@ class OpticsPreferencesRepository(private val context: Context) {
             prefs[Keys.SUPPRESS_ONGOING] = updated.suppressOngoing
             prefs[Keys.AVOID_BANNERS] = updated.avoidSystemBanners
             prefs[Keys.DYNAMIC_COLOR] = updated.useSystemDynamicColor
+            prefs[Keys.ADAPTIVE_CONTRAST_BLUR] = updated.adaptiveContrastBlur
             prefs[Keys.BLOCKED_PACKAGES] = updated.blockedPackages
         }
     }

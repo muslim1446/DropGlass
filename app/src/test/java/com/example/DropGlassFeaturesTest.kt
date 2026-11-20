@@ -243,4 +243,108 @@ class DropGlassFeaturesTest {
         assertEquals("On my way now", extracted)
         org.junit.Assert.assertTrue((fillIn.flags and Intent.FLAG_RECEIVER_FOREGROUND) != 0)
     }
+
+    @Test
+    fun `dynamic blur scales up on bright screens and respects adaptive toggle and power save`() {
+        val baseConfig = com.example.model.GlassOpticsConfig(
+            blurRadiusDp = 28f,
+            adaptiveContrastBlur = true
+        )
+        val darkEnv = com.example.system.ScreenEnvironmentState(
+            isLightUiMode = false,
+            isLightWallpaper = false,
+            isCrossWindowBlurActive = true,
+            isPowerSaveMode = false
+        )
+        val lightEnv = com.example.system.ScreenEnvironmentState(
+            isLightUiMode = true,
+            isLightWallpaper = true,
+            isCrossWindowBlurActive = true,
+            isPowerSaveMode = false
+        )
+        val powerSaveEnv = lightEnv.copy(isPowerSaveMode = true)
+
+        val darkProfile = com.example.system.ScreenEnvironmentCalculator.computeProfile(baseConfig, darkEnv)
+        val lightProfile = com.example.system.ScreenEnvironmentCalculator.computeProfile(baseConfig, lightEnv)
+        val fixedProfile = com.example.system.ScreenEnvironmentCalculator.computeProfile(
+            baseConfig.copy(adaptiveContrastBlur = false),
+            lightEnv
+        )
+        val powerSaveProfile = com.example.system.ScreenEnvironmentCalculator.computeProfile(baseConfig, powerSaveEnv)
+
+        org.junit.Assert.assertTrue(lightProfile.effectiveBlurDp > darkProfile.effectiveBlurDp)
+        org.junit.Assert.assertTrue(lightProfile.effectiveScreenLuma > darkProfile.effectiveScreenLuma)
+        org.junit.Assert.assertTrue(lightProfile.useCrossWindowBlur)
+        assertEquals(28f, fixedProfile.effectiveBlurDp, 0.01f)
+        org.junit.Assert.assertFalse(powerSaveProfile.useCrossWindowBlur)
+    }
+
+    @Test
+    fun `material you dynamic color defaults true and glass thickness scales scattering blur`() {
+        val defaultConfig = com.example.model.GlassOpticsConfig()
+        org.junit.Assert.assertTrue(defaultConfig.useSystemDynamicColor)
+
+        val darkEnv = com.example.system.ScreenEnvironmentState(
+            isLightUiMode = false,
+            isLightWallpaper = false,
+            isCrossWindowBlurActive = true
+        )
+        val smallDropProfile = com.example.system.ScreenEnvironmentCalculator.computeProfile(
+            config = defaultConfig,
+            env = darkEnv,
+            componentThickness = com.example.system.ScreenEnvironmentCalculator.thicknessForStage(
+                com.example.model.DropStage.SMALL_DROP
+            )
+        )
+        val mediumPillProfile = com.example.system.ScreenEnvironmentCalculator.computeProfile(
+            config = defaultConfig,
+            env = darkEnv,
+            componentThickness = com.example.system.ScreenEnvironmentCalculator.thicknessForStage(
+                com.example.model.DropStage.MEDIUM_PILL
+            )
+        )
+        val fullGlassProfile = com.example.system.ScreenEnvironmentCalculator.computeProfile(
+            config = defaultConfig,
+            env = darkEnv,
+            componentThickness = com.example.system.ScreenEnvironmentCalculator.thicknessForStage(
+                com.example.model.DropStage.BIGGEST_GLASS
+            )
+        )
+
+        org.junit.Assert.assertTrue(smallDropProfile.effectiveBlurDp < mediumPillProfile.effectiveBlurDp)
+        org.junit.Assert.assertTrue(mediumPillProfile.effectiveBlurDp < fullGlassProfile.effectiveBlurDp)
+    }
+
+    @Test
+    fun `liquid glass flips polarity on bright screens and maintains vibrancy ink contrast`() {
+        val lightClear = com.example.system.ScreenEnvironmentCalculator.isLightGlassPolarity(
+            style = com.example.model.GlassStyle.CRYSTAL_CLEAR,
+            screenLuma = 0.85f
+        )
+        val darkClear = com.example.system.ScreenEnvironmentCalculator.isLightGlassPolarity(
+            style = com.example.model.GlassStyle.CRYSTAL_CLEAR,
+            screenLuma = 0.20f
+        )
+        val brightSmoked = com.example.system.ScreenEnvironmentCalculator.isLightGlassPolarity(
+            style = com.example.model.GlassStyle.OBSIDIAN_SMOKE,
+            screenLuma = 0.90f
+        )
+
+        org.junit.Assert.assertTrue(lightClear)
+        org.junit.Assert.assertFalse(darkClear)
+        org.junit.Assert.assertFalse(brightSmoked)
+
+        val lightVibrancy = com.example.ui.glass.computeGlassVibrancyPalette(
+            isLightGlass = true,
+            accentColor = androidx.compose.ui.graphics.Color(0xFF3AD17A)
+        )
+        val darkVibrancy = com.example.ui.glass.computeGlassVibrancyPalette(
+            isLightGlass = false,
+            accentColor = androidx.compose.ui.graphics.Color(0xFF0B57D0)
+        )
+
+        org.junit.Assert.assertTrue(lightVibrancy.inkPrimary.red < 0.2f)
+        org.junit.Assert.assertTrue(darkVibrancy.inkPrimary.red > 0.85f)
+    }
 }
+

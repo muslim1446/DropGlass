@@ -67,20 +67,21 @@ import com.example.ui.components.LiquidSilkBackdrop
 import com.example.ui.screens.BridgeScreen
 import com.example.ui.screens.OpticsScreen
 import com.example.ui.screens.StageScreen
-import com.example.ui.theme.CanvasBlack
 import com.example.ui.theme.DropGlassTheme
-import com.example.ui.theme.TextMuted
-import com.example.ui.theme.TextPrimary
-import com.example.ui.theme.FrostPrimary
-import com.example.ui.theme.SurfaceOne
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+            statusBarStyle = SystemBarStyle.auto(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            ),
+            navigationBarStyle = SystemBarStyle.auto(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT
+            )
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.attributes.layoutInDisplayCutoutMode =
@@ -146,8 +147,9 @@ private fun DropGlassAppShell(viewModel: MainViewModel) {
         }
     }
 
-    val activeAccent = remember(uiState.previewDrop?.accentColorArgb) {
-        uiState.previewDrop?.let { Color(it.accentColorArgb) } ?: FrostPrimary
+    val fallbackAccent = MaterialTheme.colorScheme.primary
+    val activeAccent = remember(uiState.previewDrop?.accentColorArgb, fallbackAccent) {
+        uiState.previewDrop?.let { Color(it.accentColorArgb) } ?: fallbackAccent
     }
 
     val requestPostNotifications = {
@@ -264,57 +266,49 @@ private fun DropGlassBottomBar(
     selectedTab: StudioTab,
     onSelectTab: (StudioTab) -> Unit
 ) {
-    Column {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(Color.White.copy(alpha = 0.06f))
-        )
-        NavigationBar(
-            containerColor = CanvasBlack.copy(alpha = 0.96f),
-            contentColor = TextPrimary,
-            tonalElevation = 0.dp,
-            windowInsets = WindowInsets.navigationBars
-        ) {
-            StudioTab.entries.forEach { tab ->
-                val selected = selectedTab == tab
-                val label = when (tab) {
-                    StudioTab.STAGE -> stringResource(R.string.tab_stage)
-                    StudioTab.OPTICS -> stringResource(R.string.tab_optics)
-                    StudioTab.BRIDGE -> stringResource(R.string.tab_bridge)
-                }
-                val icon = when (tab) {
-                    StudioTab.STAGE -> if (selected) Icons.Rounded.WaterDrop else Icons.Outlined.WaterDrop
-                    StudioTab.OPTICS -> if (selected) Icons.Rounded.Tune else Icons.Outlined.Tune
-                    StudioTab.BRIDGE -> if (selected) Icons.Rounded.Hub else Icons.Outlined.Hub
-                }
-                NavigationBarItem(
-                    selected = selected,
-                    onClick = { onSelectTab(tab) },
-                    icon = {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = label,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    },
-                    label = {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = FrostPrimary,
-                        selectedTextColor = TextPrimary,
-                        indicatorColor = Color.White.copy(alpha = 0.07f),
-                        unselectedIconColor = TextMuted,
-                        unselectedTextColor = TextMuted
-                    ),
-                    modifier = Modifier.testTag("nav_${tab.name.lowercase()}")
-                )
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 0.dp,
+        windowInsets = WindowInsets.navigationBars
+    ) {
+        StudioTab.entries.forEach { tab ->
+            val selected = selectedTab == tab
+            val label = when (tab) {
+                StudioTab.STAGE -> stringResource(R.string.tab_stage)
+                StudioTab.OPTICS -> stringResource(R.string.tab_optics)
+                StudioTab.BRIDGE -> stringResource(R.string.tab_bridge)
             }
+            val icon = when (tab) {
+                StudioTab.STAGE -> if (selected) Icons.Rounded.WaterDrop else Icons.Outlined.WaterDrop
+                StudioTab.OPTICS -> if (selected) Icons.Rounded.Tune else Icons.Outlined.Tune
+                StudioTab.BRIDGE -> if (selected) Icons.Rounded.Hub else Icons.Outlined.Hub
+            }
+            NavigationBarItem(
+                selected = selected,
+                onClick = { onSelectTab(tab) },
+                icon = {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = label,
+                        modifier = Modifier.size(22.dp)
+                    )
+                },
+                label = {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                    indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                modifier = Modifier.testTag("nav_${tab.name.lowercase()}")
+            )
         }
     }
 }
@@ -325,11 +319,11 @@ private fun DropGlassNavRail(
     onSelectTab: (StudioTab) -> Unit
 ) {
     NavigationRail(
-        containerColor = CanvasBlack,
-        contentColor = TextPrimary,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier
             .fillMaxHeight()
-            .background(CanvasBlack)
+            .background(MaterialTheme.colorScheme.surfaceContainer)
             .padding(top = 24.dp, start = 8.dp, end = 8.dp)
     ) {
         StudioTab.entries.forEach { tab ->
@@ -348,13 +342,13 @@ private fun DropGlassNavRail(
                 selected = selected,
                 onClick = { onSelectTab(tab) },
                 icon = { Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(22.dp)) },
-                label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                label = { Text(label, style = MaterialTheme.typography.labelMedium) },
                 colors = NavigationRailItemDefaults.colors(
-                    selectedIconColor = FrostPrimary,
-                    selectedTextColor = TextPrimary,
-                    indicatorColor = Color.White.copy(alpha = 0.07f),
-                    unselectedIconColor = TextMuted,
-                    unselectedTextColor = TextMuted
+                    selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                    indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 modifier = Modifier.testTag("rail_${tab.name.lowercase()}")
             )
