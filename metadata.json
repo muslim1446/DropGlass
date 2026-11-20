@@ -1,0 +1,8 @@
+{
+  "name": "KSSM Recall",
+  "description": "Cognitive-science KSSM Form 4 & 5 Pure Science and Add Math study companion with progressive section reveal and Likert mastery tracking",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,34 @@
+<resources>
+    <string name="app_name">KSSM Recall</string>
+    <string name="notification_listener_label">DropGlass Live Popup</string>
+    <string name="overlay_channel_name">DropGlass Engine</string>
+    <string name="overlay_channel_desc">Keeps the Liquid Glass notification droplet synchronized with the selfie camera.</string>
+    <string name="test_channel_name">DropGlass Alerts</string>
+    <string name="test_channel_desc">Live system notification previews for testing the selfie-camera droplet.</string>
+
+    <string name="tab_stage">Stage</string>
+    <string name="tab_optics">Optics</string>
+    <string name="tab_bridge">Bridge</string>
+
+    <string name="hero_subtitle">OPPO CPH2773 · Optical Liquid Glass</string>
+    <string name="stage_hint">Tap a droplet preset or send a real OS alert to watch the meniscus detach from your selfie lens.</string>
+
+    <string name="action_reply">Reply</string>
+    <string name="action_dismiss">Dismiss</string>
+    <string name="action_open">Open</string>
+    <string name="action_send">Send</string>
+    <string name="reply_hint">Quick reply…</string>
+
+    <string name="bridge_title">System Notification Bridge</string>
+    <string name="bridge_subtitle">Connect Android Notification Listener and Overlay Window to replace heads-up popups below your selfie camera.</string>
+    <string name="perm_notification_access">Notification Access</string>
+    <string name="perm_overlay_window">Display Over Apps</string>
+    <string name="perm_post_notifications">Alert Permission</string>
+    <string name="status_active">Active</string>
+    <string name="status_required">Grant</string>
+
+    <string name="coloros_guide_title">ColorOS CPH2773 Setup</string>
+    <string name="coloros_guide_step1">1. Enable Notification Access &amp; Display Over Apps above so DropGlass intercepts incoming alerts in real time.</string>
+    <string name="coloros_guide_step2">2. To hide ColorOS\'s duplicate stock banner, open Settings → Notifications &amp; Status Bar → App notifications and turn off Banner for apps you want in Liquid Glass.</string>
+    <string name="coloros_guide_step3">3. In Battery → App management, set DropGlass to Allow background activity &amp; Auto-launch so ColorOS keeps the lens meniscus alive.</string>
+</resources>

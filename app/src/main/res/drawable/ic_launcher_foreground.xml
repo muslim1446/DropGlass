@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Subtle upper selfie camera lens ring -->
+    <path
+        android:pathData="M54,26 m-8.5,0 a8.5,8.5 0 1,0 17,0 a8.5,8.5 0 1,0 -17,0"
+        android:fillColor="#04060A"
+        android:strokeWidth="1.6"
+        android:strokeColor="#66A6DCFF" />
+    <!-- Liquid Glass Water Drop detaching from the camera lens -->
+    <path android:pathData="M54,34 C54,34 69,51.5 69,63 C69,71.3 62.3,78 54,78 C45.7,78 39,71.3 39,63 C39,51.5 54,34 54,34 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="43"
+                android:startY="40"
+                android:endX="66"
+                android:endY="76"
+                android:type="linear">
+                <item android:color="#F4FAFF" android:offset="0.0" />
+                <item android:color="#9FD8FF" android:offset="0.48" />
+                <item android:color="#3D98F0" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- Specular caustic highlight arc inside the droplet -->
+    <path
+        android:pathData="M48,55 C45.5,58.5 45.2,64.2 47.4,68.2 C48.2,69.6 46.2,70.6 45.2,69.0 C42.4,64.2 42.8,57.4 46.1,53.2 C47.1,51.9 48.9,53.7 48,55 Z"
+        android:fillColor="#E6FFFFFF" />
+</vector>
